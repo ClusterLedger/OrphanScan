@@ -1,6 +1,6 @@
 # Binaries
-orphanscan
-orphanscan.exe
+/orphanscan
+/orphanscan.exe
 dist/
 
 # Test artifacts

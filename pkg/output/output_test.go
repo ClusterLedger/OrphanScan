@@ -3,6 +3,7 @@ package output
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -43,7 +44,9 @@ func TestPrintText_WithFindings(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	PrintText(&buf, report)
+	if err := PrintText(&buf, report); err != nil {
+		t.Fatalf("PrintText error: %v", err)
+	}
 	out := buf.String()
 
 	if !strings.Contains(out, "OrphanScan") {
@@ -59,11 +62,58 @@ func TestPrintText_WithFindings(t *testing.T) {
 
 func TestPrintText_ZeroWaste(t *testing.T) {
 	var buf bytes.Buffer
-	PrintText(&buf, WasteReport{})
+	if err := PrintText(&buf, WasteReport{}); err != nil {
+		t.Fatalf("PrintText error: %v", err)
+	}
 	out := buf.String()
 
 	if !strings.Contains(out, "Scan complete") {
 		t.Error("missing scan complete message")
+	}
+}
+
+type failingWriter struct {
+	failAt   int
+	writes   int
+	writeErr error
+}
+
+func (w *failingWriter) Write(p []byte) (int, error) {
+	w.writes++
+	if w.writes == w.failAt {
+		return 0, w.writeErr
+	}
+	return len(p), nil
+}
+
+func TestPrintText_WriteError(t *testing.T) {
+	writeErr := errors.New("write failed")
+	tests := []struct {
+		name   string
+		report WasteReport
+		failAt int
+	}{
+		{name: "header", failAt: 1},
+		{name: "zero waste", failAt: 5},
+		{
+			name: "finding",
+			report: WasteReport{
+				EIPs: []scanner.OrphanedEIP{{AllocationID: "eipalloc-xyz"}},
+			},
+			failAt: 4,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := &failingWriter{failAt: tt.failAt, writeErr: writeErr}
+			if err := PrintText(w, tt.report); !errors.Is(err, writeErr) {
+				t.Fatalf("PrintText error = %v, want %v", err, writeErr)
+			}
+			if w.writes != tt.failAt {
+				t.Errorf("writer called %d times, want %d (no writes after failure)", w.writes, tt.failAt)
+			}
+		})
 	}
 }
 

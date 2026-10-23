@@ -17,32 +17,54 @@ type WasteReport struct {
 	PVCs    []scanner.OrphanedPVC
 }
 
-// PrintText writes a human-readable waste audit to w.
-func PrintText(w io.Writer, report WasteReport) {
-	fmt.Fprintln(w, "=== OrphanScan: Waste Audit ===")
-	fmt.Fprintln(w, "Scanning local kubeconfig and AWS environment...")
-	fmt.Fprintln(w)
+// PrintText writes a human-readable waste audit to w and returns any write error.
+func PrintText(w io.Writer, report WasteReport) error {
+	tw := &textWriter{w: w}
+	tw.println("=== OrphanScan: Waste Audit ===")
+	tw.println("Scanning local kubeconfig and AWS environment...")
+	tw.println()
 
-	total := printVolumes(w, report.Volumes) +
-		printLBs(w, report.LBs) +
-		printEIPs(w, report.EIPs) +
-		printPVCs(w, report.PVCs)
+	total := printVolumes(tw, report.Volumes) +
+		printLBs(tw, report.LBs) +
+		printEIPs(tw, report.EIPs) +
+		printPVCs(tw, report.PVCs)
 
-	fmt.Fprintln(w, "Scan complete.")
+	tw.println("Scan complete.")
 
 	if total == 0 {
-		fmt.Fprintln(w, "No orphaned resources detected. Your infrastructure looks clean!")
-		return
+		tw.println("No orphaned resources detected. Your infrastructure looks clean!")
+		return tw.err
 	}
 
-	fmt.Fprintln(w, "=========================================")
-	fmt.Fprintf(w, "Total Monthly Waste Detected: $%.2f\n", total)
-	fmt.Fprintln(w, "=========================================")
-	fmt.Fprintln(w, "> Automated cleanup (OrphanSweep) coming soon.")
-	fmt.Fprintln(w, "> More from ClusterLedger: https://github.com/ClusterLedger")
+	tw.println("=========================================")
+	tw.printf("Total Monthly Waste Detected: $%.2f\n", total)
+	tw.println("=========================================")
+	tw.println("> Automated cleanup (OrphanSweep) coming soon.")
+	tw.println("> More from ClusterLedger: https://github.com/ClusterLedger")
+	return tw.err
 }
 
-func printVolumes(w io.Writer, volumes []scanner.OrphanedVolume) float64 {
+// textWriter retains the first write error and skips any subsequent writes.
+type textWriter struct {
+	w   io.Writer
+	err error
+}
+
+func (tw *textWriter) println(args ...any) {
+	if tw.err != nil {
+		return
+	}
+	_, tw.err = fmt.Fprintln(tw.w, args...)
+}
+
+func (tw *textWriter) printf(format string, args ...any) {
+	if tw.err != nil {
+		return
+	}
+	_, tw.err = fmt.Fprintf(tw.w, format, args...)
+}
+
+func printVolumes(w *textWriter, volumes []scanner.OrphanedVolume) float64 {
 	if len(volumes) == 0 {
 		return 0
 	}
@@ -61,18 +83,18 @@ func printVolumes(w io.Writer, volumes []scanner.OrphanedVolume) float64 {
 	return total
 }
 
-func printEIPs(w io.Writer, eips []scanner.OrphanedEIP) float64 {
+func printEIPs(w *textWriter, eips []scanner.OrphanedEIP) float64 {
 	if len(eips) == 0 {
 		return 0
 	}
 
 	cost := pricing.EIPMonthlyCost(len(eips))
-	fmt.Fprintf(w, "[Found] %d Unassociated Elastic IPs. Wasting: $%.2f/mo\n", len(eips), cost)
+	w.printf("[Found] %d Unassociated Elastic IPs. Wasting: $%.2f/mo\n", len(eips), cost)
 
 	return cost
 }
 
-func printLBs(w io.Writer, lbs []scanner.IdleLoadBalancer) float64 {
+func printLBs(w *textWriter, lbs []scanner.IdleLoadBalancer) float64 {
 	if len(lbs) == 0 {
 		return 0
 	}
@@ -91,7 +113,7 @@ func printLBs(w io.Writer, lbs []scanner.IdleLoadBalancer) float64 {
 	return total
 }
 
-func printPVCs(w io.Writer, pvcs []scanner.OrphanedPVC) float64 {
+func printPVCs(w *textWriter, pvcs []scanner.OrphanedPVC) float64 {
 	if len(pvcs) == 0 {
 		return 0
 	}
@@ -107,8 +129,8 @@ func printPVCs(w io.Writer, pvcs []scanner.OrphanedPVC) float64 {
 // --- helpers ---
 
 // writeFinding formats a single "[Found]" line with a regional/namespace qualifier.
-func writeFinding(w io.Writer, count int, label, qualifier string, cost float64) {
-	fmt.Fprintf(w, "[Found] %d %s (%s). Wasting: $%.2f/mo\n", count, label, qualifier, cost)
+func writeFinding(w *textWriter, count int, label, qualifier string, cost float64) {
+	w.printf("[Found] %d %s (%s). Wasting: $%.2f/mo\n", count, label, qualifier, cost)
 }
 
 // groupBy partitions items into buckets keyed by the given function.
