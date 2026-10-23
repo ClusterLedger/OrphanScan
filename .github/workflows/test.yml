@@ -1,0 +1,26 @@
+name: Go tests
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Run tests with coverage
+        run: go test -count=1 -coverprofile=coverage.out ./...
+      - name: Show coverage
+        run: go tool cover -func=coverage.out
+      - name: Upload coverage profile
+        uses: actions/upload-artifact@v7
+        with:
+          name: go-coverage
+          path: coverage.out
+          if-no-files-found: error
+          retention-days: 7
