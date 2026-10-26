@@ -22,7 +22,7 @@ func SetWarnWriter(w io.Writer) {
 // NewWarnFunc returns a warn function that writes [WARN] messages to w.
 func NewWarnFunc(w io.Writer) func(string, ...any) {
 	return func(format string, args ...any) {
-		fmt.Fprintf(w, "[WARN] "+format+"\n", args...)
+		_, _ = fmt.Fprintf(w, "[WARN] "+format+"\n", args...)
 	}
 }
 
@@ -31,5 +31,5 @@ func Warn(format string, args ...any) {
 	warnMu.Lock()
 	w := warnWriter
 	warnMu.Unlock()
-	fmt.Fprintf(w, "[WARN] "+format+"\n", args...)
+	_, _ = fmt.Fprintf(w, "[WARN] "+format+"\n", args...)
 }
