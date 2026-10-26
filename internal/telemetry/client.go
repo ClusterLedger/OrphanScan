@@ -89,7 +89,7 @@ func (c *Client) Capture(ctx context.Context, estimatedMonthlyWaste float64) err
 		return fmt.Errorf("create telemetry request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "OrphanScan")
+	req.Header.Set("User-Agent", "")
 	response, err := c.http.Do(req)
 	if err != nil {
 		return fmt.Errorf("send telemetry event: %w", err)

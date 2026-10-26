@@ -3,6 +3,7 @@ package output
 import (
 	"encoding/json"
 	"io"
+	"time"
 
 	"github.com/ClusterLedger/OrphanScan/pkg/pricing"
 	"github.com/ClusterLedger/OrphanScan/pkg/scanner"
@@ -22,11 +23,13 @@ type jsonVolume struct {
 	VolumeID    string  `json:"volume_id"`
 	Region      string  `json:"region"`
 	SizeGB      int32   `json:"size_gb"`
+	Age         string  `json:"age"`
 	MonthlyCost float64 `json:"monthly_cost"`
 }
 
 type jsonEIP struct {
 	AllocationID string  `json:"allocation_id"`
+	PublicIP     string  `json:"public_ip"`
 	Region       string  `json:"region"`
 	MonthlyCost  float64 `json:"monthly_cost"`
 }
@@ -84,6 +87,7 @@ func mapVolumes(volumes []scanner.OrphanedVolume) ([]jsonVolume, float64) {
 			VolumeID:    obfuscate(v.VolumeID),
 			Region:      v.Region,
 			SizeGB:      v.SizeGB,
+			Age:         v.Age.Truncate(time.Second).String(),
 			MonthlyCost: cost,
 		})
 	}
@@ -100,6 +104,7 @@ func mapEIPs(eips []scanner.OrphanedEIP) ([]jsonEIP, float64) {
 		total += cost
 		out = append(out, jsonEIP{
 			AllocationID: obfuscate(e.AllocationID),
+			PublicIP:     obfuscate(e.PublicIP),
 			Region:       e.Region,
 			MonthlyCost:  cost,
 		})

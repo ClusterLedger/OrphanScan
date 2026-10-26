@@ -30,5 +30,8 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # These are intentionally vars (not secrets). The phc_ project token is
+          # public by design and safe to expose in logs. Never store a personal
+          # (phx_) or secret (phs_) API key here.
           ORPHANSCAN_POSTHOG_HOST: ${{ vars.ORPHANSCAN_POSTHOG_HOST }}
           ORPHANSCAN_POSTHOG_PROJECT_TOKEN: ${{ vars.ORPHANSCAN_POSTHOG_PROJECT_TOKEN }}

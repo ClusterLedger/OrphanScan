@@ -68,5 +68,8 @@ func SavePreference(path string, enabled bool) error {
 	if err := os.Rename(file.Name(), path); err != nil {
 		return fmt.Errorf("save telemetry preference: %w", err)
 	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		return fmt.Errorf("save telemetry preference: %w", err)
+	}
 	return nil
 }

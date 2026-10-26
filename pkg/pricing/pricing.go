@@ -1,12 +1,6 @@
 package pricing
 
-// Load balancer type constants matching scanner.LBType* values.
-const (
-	lbCLB  = "CLB"
-	lbALB  = "ALB"
-	lbNLB  = "NLB"
-	lbGWLB = "GWLB"
-)
+import "github.com/ClusterLedger/OrphanScan/pkg/scanner"
 
 const (
 	RateEBSPerGB = 0.08
@@ -32,15 +26,15 @@ func EIPMonthlyCost(count int) float64 {
 
 func LBMonthlyCost(lbType string) float64 {
 	switch lbType {
-	case lbCLB:
+	case scanner.LBTypeCLB:
 		return RateCLB
-	case lbALB:
+	case scanner.LBTypeALB:
 		return RateALB
-	case lbNLB:
+	case scanner.LBTypeNLB:
 		return RateNLB
-	case lbGWLB:
+	case scanner.LBTypeGWLB:
 		return RateGWLB
 	default:
-		return RateALB
+		return 0
 	}
 }

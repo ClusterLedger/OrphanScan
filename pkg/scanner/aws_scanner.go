@@ -74,43 +74,70 @@ func ScanAWS(ctx context.Context, cfg aws.Config, regions []string, factory Clie
 }
 
 func scanRegion(ctx context.Context, clients RegionClients, region string, warn WarnFunc) AWSScanResult {
-	var result AWSScanResult
+	var (
+		mu     sync.Mutex
+		wg     sync.WaitGroup
+		result AWSScanResult
+	)
 
-	volumes, err := ScanUnattachedVolumes(ctx, clients.EC2, region)
-	if err != nil {
-		if warn != nil {
-			warn("region %s volumes: %v", region, err)
+	wg.Add(4)
+
+	go func() {
+		defer wg.Done()
+		volumes, err := ScanUnattachedVolumes(ctx, clients.EC2, region)
+		if err != nil {
+			if warn != nil {
+				warn("region %s volumes: %v", region, err)
+			}
+			return
 		}
-	} else {
+		mu.Lock()
 		result.Volumes = volumes
-	}
+		mu.Unlock()
+	}()
 
-	eips, err := ScanUnassociatedEIPs(ctx, clients.EC2, region)
-	if err != nil {
-		if warn != nil {
-			warn("region %s eips: %v", region, err)
+	go func() {
+		defer wg.Done()
+		eips, err := ScanUnassociatedEIPs(ctx, clients.EC2, region)
+		if err != nil {
+			if warn != nil {
+				warn("region %s eips: %v", region, err)
+			}
+			return
 		}
-	} else {
+		mu.Lock()
 		result.EIPs = eips
-	}
+		mu.Unlock()
+	}()
 
-	clbs, err := ScanIdleClassicLBs(ctx, clients.ELB, region, warn)
-	if err != nil {
-		if warn != nil {
-			warn("region %s classic LBs: %v", region, err)
+	go func() {
+		defer wg.Done()
+		clbs, err := ScanIdleClassicLBs(ctx, clients.ELB, region, warn)
+		if err != nil {
+			if warn != nil {
+				warn("region %s classic LBs: %v", region, err)
+			}
+			return
 		}
-	} else {
+		mu.Lock()
 		result.LBs = append(result.LBs, clbs...)
-	}
+		mu.Unlock()
+	}()
 
-	elbv2LBs, err := ScanIdleELBv2(ctx, clients.ELBV2, region, warn)
-	if err != nil {
-		if warn != nil {
-			warn("region %s ELBv2: %v", region, err)
+	go func() {
+		defer wg.Done()
+		elbv2LBs, err := ScanIdleELBv2(ctx, clients.ELBV2, region, warn)
+		if err != nil {
+			if warn != nil {
+				warn("region %s ELBv2: %v", region, err)
+			}
+			return
 		}
-	} else {
+		mu.Lock()
 		result.LBs = append(result.LBs, elbv2LBs...)
-	}
+		mu.Unlock()
+	}()
 
+	wg.Wait()
 	return result
 }

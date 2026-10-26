@@ -20,11 +20,17 @@ func run(ctx context.Context, cfg Config) error {
 	if cfg.OutputFmt != "text" && cfg.OutputFmt != "json" {
 		return fmt.Errorf("--output must be text or json")
 	}
-	usage := newUsageReporter(cfg)
+	if err := telemetry.ValidateMode(cfg.Telemetry); err != nil {
+		return err
+	}
+	usage := newUsageReporter(cfg, telemetryHost, telemetryProjectToken)
 	var report output.WasteReport
 
 	k8sClient, k8sOK := initK8s(cfg.Kubeconfig)
 	regions, awsCfg, awsOK := initAWS(ctx, cfg.AWSProfile, cfg.Regions)
+
+	report.HasK8s = k8sOK
+	report.HasAWS = awsOK
 
 	if !k8sOK && !awsOK {
 		return fmt.Errorf("both Kubernetes and AWS are unavailable — nothing to scan")

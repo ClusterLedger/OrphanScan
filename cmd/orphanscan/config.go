@@ -31,7 +31,7 @@ func ParseFlags() Config {
 	regions := flag.String("regions", "", "Comma-separated list of AWS regions to scan")
 	outputFmt := flag.String("output", "text", "Output format: text or json")
 	showVersion := flag.Bool("version", false, "Print version and exit")
-	telemetry := flag.String("telemetry", "", "Save usage reporting preference: on or off")
+	telemetry := flag.String("telemetry", "", "Save usage reporting preference: on or off (env DO_NOT_TRACK=1 suppresses)")
 
 	flag.Parse()
 

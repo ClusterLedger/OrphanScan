@@ -139,7 +139,7 @@ func TestTelemetryPromptEligibility(t *testing.T) {
 
 func TestNewUsageReporterDoesNotTrack(t *testing.T) {
 	t.Setenv("DO_NOT_TRACK", "1")
-	reporter := newUsageReporter(Config{Telemetry: "on"})
+	reporter := newUsageReporter(Config{Telemetry: "on"}, "https://us.i.posthog.com", "phc_test")
 	if err := reporter.Report(context.Background(), 99); err != nil {
 		t.Fatal(err)
 	}
@@ -147,11 +147,15 @@ func TestNewUsageReporterDoesNotTrack(t *testing.T) {
 
 func TestNewUsageReporterUnconfiguredBuild(t *testing.T) {
 	t.Setenv("DO_NOT_TRACK", "")
-	token, host := telemetryProjectToken, telemetryHost
-	telemetryProjectToken, telemetryHost = "", ""
-	t.Cleanup(func() { telemetryProjectToken, telemetryHost = token, host })
-	reporter := newUsageReporter(Config{OutputFmt: "text"})
+	reporter := newUsageReporter(Config{OutputFmt: "text"}, "", "")
 	if err := reporter.Report(context.Background(), 99); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRunRejectsInvalidTelemetryMode(t *testing.T) {
+	err := run(context.Background(), Config{OutputFmt: "text", Telemetry: "yes"})
+	if err == nil || !strings.Contains(err.Error(), "--telemetry") {
+		t.Fatalf("expected telemetry mode error, got %v", err)
 	}
 }

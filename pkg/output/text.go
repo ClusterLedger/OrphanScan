@@ -15,13 +15,15 @@ type WasteReport struct {
 	EIPs    []scanner.OrphanedEIP
 	LBs     []scanner.IdleLoadBalancer
 	PVCs    []scanner.OrphanedPVC
+	HasK8s  bool
+	HasAWS  bool
 }
 
 // PrintText writes a human-readable waste audit to w and returns any write error.
 func PrintText(w io.Writer, report WasteReport) error {
 	tw := &textWriter{w: w}
 	tw.println("=== OrphanScan: Waste Audit ===")
-	tw.println("Scanning local kubeconfig and AWS environment...")
+	tw.println(scanSourceMessage(report))
 	tw.println()
 
 	total := printVolumes(tw, report.Volumes) +
@@ -39,8 +41,10 @@ func PrintText(w io.Writer, report WasteReport) error {
 	tw.println("=========================================")
 	tw.printf("Total Monthly Waste Detected: $%.2f\n", total)
 	tw.println("=========================================")
-	tw.println("> Automated cleanup (OrphanSweep) coming soon.")
-	tw.println("> More from ClusterLedger: https://github.com/ClusterLedger")
+	if total > 49 {
+		tw.println("> Automated cleanup (OrphanSweep) coming soon.")
+		tw.println("> More from ClusterLedger: https://github.com/ClusterLedger")
+	}
 	return tw.err
 }
 
@@ -145,6 +149,19 @@ func sumCost[T any](items []T, cost func(T) float64) float64 {
 		total += cost(item)
 	}
 	return total
+}
+
+func scanSourceMessage(report WasteReport) string {
+	switch {
+	case report.HasK8s && report.HasAWS:
+		return "Scanning local kubeconfig and AWS environment..."
+	case report.HasK8s:
+		return "Scanning local kubeconfig..."
+	case report.HasAWS:
+		return "Scanning AWS environment..."
+	default:
+		return "Scanning..."
+	}
 }
 
 func uniqueNamespaces(pvcs []scanner.OrphanedPVC) []string {

@@ -31,8 +31,8 @@ func TestClientMinimalEvents(t *testing.T) {
 		if req.Method != http.MethodPost || req.URL.Path != "/i/v0/e/" || req.Header.Get("Content-Type") != "application/json" {
 			t.Errorf("unexpected request: %s %s, content type %q", req.Method, req.URL.Path, req.Header.Get("Content-Type"))
 		}
-		if req.Header.Get("User-Agent") != "OrphanScan" {
-			t.Errorf("unexpected user agent %q", req.Header.Get("User-Agent"))
+		if ua := req.Header.Get("User-Agent"); ua != "" {
+			t.Errorf("expected empty user agent, got %q", ua)
 		}
 		var event map[string]json.RawMessage
 		if err := json.NewDecoder(req.Body).Decode(&event); err != nil {

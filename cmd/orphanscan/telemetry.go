@@ -10,12 +10,9 @@ import (
 	"github.com/ClusterLedger/OrphanScan/pkg/output"
 )
 
-func newUsageReporter(cfg Config) *telemetry.Reporter {
+func newUsageReporter(cfg Config, host, token string) *telemetry.Reporter {
 	doNotTrack := os.Getenv("DO_NOT_TRACK") == "1"
-	if doNotTrack {
-		return &telemetry.Reporter{}
-	}
-	client, err := telemetry.NewClient(telemetryHost, telemetryProjectToken)
+	client, err := telemetry.NewClient(host, token)
 	if err != nil {
 		output.Warn("Usage reporting disabled: %v", err)
 		return &telemetry.Reporter{}
