@@ -71,7 +71,6 @@ func printVolumes(w *textWriter, volumes []scanner.OrphanedVolume) float64 {
 
 	byRegion := groupBy(volumes, func(v scanner.OrphanedVolume) string { return v.Region })
 	var total float64
-
 	for region, vols := range byRegion {
 		cost := sumCost(vols, func(v scanner.OrphanedVolume) float64 {
 			return pricing.EBSMonthlyCost(v.SizeGB)
@@ -79,7 +78,6 @@ func printVolumes(w *textWriter, volumes []scanner.OrphanedVolume) float64 {
 		total += cost
 		writeFinding(w, len(vols), "Unattached EBS Volumes", region, cost)
 	}
-
 	return total
 }
 
@@ -90,7 +88,6 @@ func printEIPs(w *textWriter, eips []scanner.OrphanedEIP) float64 {
 
 	cost := pricing.EIPMonthlyCost(len(eips))
 	w.printf("[Found] %d Unassociated Elastic IPs. Wasting: $%.2f/mo\n", len(eips), cost)
-
 	return cost
 }
 
@@ -101,7 +98,6 @@ func printLBs(w *textWriter, lbs []scanner.IdleLoadBalancer) float64 {
 
 	byRegion := groupBy(lbs, func(lb scanner.IdleLoadBalancer) string { return lb.Region })
 	var total float64
-
 	for region, regionLBs := range byRegion {
 		cost := sumCost(regionLBs, func(lb scanner.IdleLoadBalancer) float64 {
 			return pricing.LBMonthlyCost(lb.Type)
@@ -109,7 +105,6 @@ func printLBs(w *textWriter, lbs []scanner.IdleLoadBalancer) float64 {
 		total += cost
 		writeFinding(w, len(regionLBs), "Idle Load Balancers", region, cost)
 	}
-
 	return total
 }
 

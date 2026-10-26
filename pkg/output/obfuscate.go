@@ -1,6 +1,6 @@
 package output
 
-func Obfuscate(id string) string {
+func obfuscate(id string) string {
 	if len(id) <= 8 {
 		return "***"
 	}

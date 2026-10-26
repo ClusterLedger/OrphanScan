@@ -2,7 +2,6 @@ package scanner
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -60,13 +59,7 @@ func ScanAWS(ctx context.Context, cfg aws.Config, regions []string, factory Clie
 			defer wg.Done()
 
 			clients := factory(cfg, region)
-			partial, err := scanRegion(ctx, clients, region)
-			if err != nil {
-				if warn != nil {
-					warn("region %s: %v", region, err)
-				}
-				return
-			}
+			partial := scanRegion(ctx, clients, region, warn)
 
 			mu.Lock()
 			result.Volumes = append(result.Volumes, partial.Volumes...)
@@ -80,32 +73,44 @@ func ScanAWS(ctx context.Context, cfg aws.Config, regions []string, factory Clie
 	return result
 }
 
-func scanRegion(ctx context.Context, clients RegionClients, region string) (AWSScanResult, error) {
+func scanRegion(ctx context.Context, clients RegionClients, region string, warn WarnFunc) AWSScanResult {
 	var result AWSScanResult
 
 	volumes, err := ScanUnattachedVolumes(ctx, clients.EC2, region)
 	if err != nil {
-		return result, fmt.Errorf("volumes: %w", err)
+		if warn != nil {
+			warn("region %s volumes: %v", region, err)
+		}
+	} else {
+		result.Volumes = volumes
 	}
-	result.Volumes = volumes
 
 	eips, err := ScanUnassociatedEIPs(ctx, clients.EC2, region)
 	if err != nil {
-		return result, fmt.Errorf("eips: %w", err)
+		if warn != nil {
+			warn("region %s eips: %v", region, err)
+		}
+	} else {
+		result.EIPs = eips
 	}
-	result.EIPs = eips
 
-	clbs, err := ScanIdleClassicLBs(ctx, clients.ELB, region)
+	clbs, err := ScanIdleClassicLBs(ctx, clients.ELB, region, warn)
 	if err != nil {
-		return result, fmt.Errorf("clb: %w", err)
+		if warn != nil {
+			warn("region %s classic LBs: %v", region, err)
+		}
+	} else {
+		result.LBs = append(result.LBs, clbs...)
 	}
-	result.LBs = append(result.LBs, clbs...)
 
-	elbv2LBs, err := ScanIdleELBv2(ctx, clients.ELBV2, region)
+	elbv2LBs, err := ScanIdleELBv2(ctx, clients.ELBV2, region, warn)
 	if err != nil {
-		return result, fmt.Errorf("elbv2: %w", err)
+		if warn != nil {
+			warn("region %s ELBv2: %v", region, err)
+		}
+	} else {
+		result.LBs = append(result.LBs, elbv2LBs...)
 	}
-	result.LBs = append(result.LBs, elbv2LBs...)
 
-	return result, nil
+	return result
 }

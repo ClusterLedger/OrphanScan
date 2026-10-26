@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 
+	"github.com/ClusterLedger/OrphanScan/internal/telemetry"
 	"github.com/ClusterLedger/OrphanScan/pkg/awsauth"
 	"github.com/ClusterLedger/OrphanScan/pkg/kubeauth"
 	"github.com/ClusterLedger/OrphanScan/pkg/output"
@@ -15,6 +17,10 @@ import (
 
 // run orchestrates authentication, scanning, and output rendering.
 func run(ctx context.Context, cfg Config) error {
+	if cfg.OutputFmt != "text" && cfg.OutputFmt != "json" {
+		return fmt.Errorf("--output must be text or json")
+	}
+	usage := newUsageReporter(cfg)
 	var report output.WasteReport
 
 	k8sClient, k8sOK := initK8s(cfg.Kubeconfig)
@@ -25,7 +31,7 @@ func run(ctx context.Context, cfg Config) error {
 	}
 
 	if k8sOK {
-		pvcs, err := scanner.ScanOrphanedPVCs(k8sClient)
+		pvcs, err := scanner.ScanOrphanedPVCs(ctx, k8sClient)
 		if err != nil {
 			output.Warn("K8s PVC scan failed: %v", err)
 		} else {
@@ -40,7 +46,7 @@ func run(ctx context.Context, cfg Config) error {
 		report.LBs = awsResult.LBs
 	}
 
-	return renderReport(cfg.OutputFmt, report)
+	return finishScan(ctx, os.Stdout, cfg.OutputFmt, report, usage)
 }
 
 func initK8s(kubeconfig string) (*kubeauth.Client, bool) {
@@ -64,13 +70,21 @@ func initAWS(ctx context.Context, profile string, regions []string) ([]string, a
 	return regions, cfg, true
 }
 
-func renderReport(format string, report output.WasteReport) error {
+func finishScan(ctx context.Context, w io.Writer, format string, report output.WasteReport, usage *telemetry.Reporter) error {
+	var err error
 	switch format {
 	case "json":
-		return output.PrintJSON(os.Stdout, report)
+		err = output.PrintJSON(w, report)
 	default:
-		return output.PrintText(os.Stdout, report)
+		err = output.PrintText(w, report)
 	}
+	if err != nil {
+		return err
+	}
+	if err := usage.Report(ctx, report.EstimatedMonthlyWaste()); err != nil {
+		output.Warn("Usage reporting failed: %v", err)
+	}
+	return nil
 }
 
 // firstOrEmpty returns the first element or "" if the slice is empty.

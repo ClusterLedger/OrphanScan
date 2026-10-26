@@ -1,5 +1,13 @@
 package pricing
 
+// Load balancer type constants matching scanner.LBType* values.
+const (
+	lbCLB  = "CLB"
+	lbALB  = "ALB"
+	lbNLB  = "NLB"
+	lbGWLB = "GWLB"
+)
+
 const (
 	RateEBSPerGB = 0.08
 	RatePVCPerGB = 0.08
@@ -7,6 +15,7 @@ const (
 	RateCLB      = 18.00
 	RateALB      = 22.00
 	RateNLB      = 16.00
+	RateGWLB     = 18.00
 )
 
 func EBSMonthlyCost(sizeGB int32) float64 {
@@ -23,13 +32,15 @@ func EIPMonthlyCost(count int) float64 {
 
 func LBMonthlyCost(lbType string) float64 {
 	switch lbType {
-	case "CLB":
+	case lbCLB:
 		return RateCLB
-	case "ALB":
+	case lbALB:
 		return RateALB
-	case "NLB":
+	case lbNLB:
 		return RateNLB
+	case lbGWLB:
+		return RateGWLB
 	default:
-		return RateALB // safe default for unknown types
+		return RateALB
 	}
 }

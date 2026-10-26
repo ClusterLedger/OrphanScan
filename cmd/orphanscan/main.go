@@ -6,7 +6,12 @@ import (
 	"os"
 )
 
-var version = "dev"
+var (
+	version = "dev"
+	// Set at build time using the public PostHog project token and ingestion host.
+	telemetryProjectToken string
+	telemetryHost         string
+)
 
 func main() {
 	cfg := ParseFlags()

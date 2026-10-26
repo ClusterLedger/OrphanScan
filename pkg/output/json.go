@@ -81,7 +81,7 @@ func mapVolumes(volumes []scanner.OrphanedVolume) ([]jsonVolume, float64) {
 		cost := pricing.EBSMonthlyCost(v.SizeGB)
 		total += cost
 		out = append(out, jsonVolume{
-			VolumeID:    Obfuscate(v.VolumeID),
+			VolumeID:    obfuscate(v.VolumeID),
 			Region:      v.Region,
 			SizeGB:      v.SizeGB,
 			MonthlyCost: cost,
@@ -96,10 +96,10 @@ func mapEIPs(eips []scanner.OrphanedEIP) ([]jsonEIP, float64) {
 	var total float64
 
 	for _, e := range eips {
-		cost := pricing.RateEIP
+		cost := pricing.EIPMonthlyCost(1)
 		total += cost
 		out = append(out, jsonEIP{
-			AllocationID: Obfuscate(e.AllocationID),
+			AllocationID: obfuscate(e.AllocationID),
 			Region:       e.Region,
 			MonthlyCost:  cost,
 		})
@@ -116,7 +116,7 @@ func mapLBs(lbs []scanner.IdleLoadBalancer) ([]jsonLB, float64) {
 		cost := pricing.LBMonthlyCost(lb.Type)
 		total += cost
 		out = append(out, jsonLB{
-			Name:        Obfuscate(lb.Name),
+			Name:        obfuscate(lb.Name),
 			Type:        lb.Type,
 			Region:      lb.Region,
 			MonthlyCost: cost,
@@ -134,7 +134,7 @@ func mapPVCs(pvcs []scanner.OrphanedPVC) ([]jsonPVC, float64) {
 		cost := pricing.PVCMonthlyCost(pvc.SizeGB)
 		total += cost
 		out = append(out, jsonPVC{
-			Name:        Obfuscate(pvc.Name),
+			Name:        obfuscate(pvc.Name),
 			Namespace:   pvc.Namespace,
 			SizeGB:      pvc.SizeGB,
 			MonthlyCost: cost,

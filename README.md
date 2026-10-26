@@ -108,6 +108,30 @@ orphanscan --kubeconfig /path/to/config --regions us-east-1
 | `--aws-profile` | Named AWS profile | SDK default chain |
 | `--regions` | Comma-separated AWS regions | Region from AWS config |
 | `--output` | Output format: `text` or `json` | `text` |
+| `--telemetry` | Save optional scan metrics preference: `on` or `off` | Off until consent |
+
+---
+
+## Optional scan metrics
+
+Sharing metrics helps us maintain OrphanScan. Reporting is **off by default**. In configured release builds, the first interactive text scan asks once whether you want to share the number of scans and estimated monthly waste through PostHog. Either answer is remembered.
+
+```bash
+# Enable reporting and remember the choice
+orphanscan --telemetry=on --regions us-east-1
+
+# Disable reporting and remember the choice
+orphanscan --telemetry=off --regions us-east-1
+
+# Disable reporting for this invocation without changing the saved choice
+DO_NOT_TRACK=1 orphanscan --regions us-east-1
+```
+
+The dashboard counts one event per reported scan. Its only application metric is estimated monthly waste in USD. Resource counts, identifiers, credentials, scan status, and CLI version are not uploaded. Reports use a fresh random event ID rather than a persistent installation ID.
+
+JSON output, redirected execution, and CI never prompt. Previously enabled reporting still works in those modes unless `DO_NOT_TRACK=1` is set. Uploads have a two-second timeout and never fail a scan. Source builds without a configured PostHog destination neither upload nor prompt.
+
+See [telemetry setup and privacy details](docs/telemetry.md) for the payload, preference location, data retention, and private dashboard setup.
 
 ---
 

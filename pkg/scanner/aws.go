@@ -32,27 +32,35 @@ func ScanUnattachedVolumes(ctx context.Context, client EC2Client, region string)
 	if err != nil {
 		return nil, err
 	}
-	return filterOrphanedVolumes(volumes, region), nil
+	return filterOrphanedVolumes(volumes, region, time.Now()), nil
 }
 
 func listAvailableVolumes(ctx context.Context, client EC2Client) ([]types.Volume, error) {
-	out, err := client.DescribeVolumes(ctx, &ec2.DescribeVolumesInput{
+	var all []types.Volume
+	input := &ec2.DescribeVolumesInput{
 		Filters: []types.Filter{
 			{
 				Name:   aws.String("status"),
 				Values: []string{"available"},
 			},
 		},
-	})
-	if err != nil {
-		return nil, err
 	}
-	return out.Volumes, nil
+	for {
+		out, err := client.DescribeVolumes(ctx, input)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, out.Volumes...)
+		if out.NextToken == nil {
+			break
+		}
+		input.NextToken = out.NextToken
+	}
+	return all, nil
 }
 
-func filterOrphanedVolumes(volumes []types.Volume, region string) []OrphanedVolume {
+func filterOrphanedVolumes(volumes []types.Volume, region string, now time.Time) []OrphanedVolume {
 	var orphaned []OrphanedVolume
-	now := time.Now()
 
 	for _, vol := range volumes {
 		age, ok := volumeAge(vol, now)
