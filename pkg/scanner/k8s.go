@@ -23,9 +23,7 @@ type OrphanedPVC struct {
 
 const orphanAgeThreshold = 24 * time.Hour
 
-func ScanOrphanedPVCs(client KubeClient) ([]OrphanedPVC, error) {
-	ctx := context.Background()
-
+func ScanOrphanedPVCs(ctx context.Context, client KubeClient) ([]OrphanedPVC, error) {
 	pvcs, err := client.ListPVCs(ctx)
 	if err != nil {
 		return nil, err
@@ -38,12 +36,11 @@ func ScanOrphanedPVCs(client KubeClient) ([]OrphanedPVC, error) {
 
 	usedPVCs := getUsedPVCs(pods)
 
-	return filterOrphanedPVCs(pvcs, usedPVCs), nil
+	return filterOrphanedPVCs(pvcs, usedPVCs, time.Now()), nil
 }
 
-func filterOrphanedPVCs(pvcs []corev1.PersistentVolumeClaim, usedPVCs map[string]bool) []OrphanedPVC {
+func filterOrphanedPVCs(pvcs []corev1.PersistentVolumeClaim, usedPVCs map[string]bool, now time.Time) []OrphanedPVC {
 	var orphaned []OrphanedPVC
-	now := time.Now()
 
 	for _, pvc := range pvcs {
 		if usedPVCs[pvcKey(pvc)] {

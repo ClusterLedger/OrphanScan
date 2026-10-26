@@ -14,6 +14,7 @@ type Config struct {
 	Regions    []string
 	OutputFmt  string
 	Version    bool
+	Telemetry  string
 }
 
 // ParseFlags reads CLI flags and returns a validated Config.
@@ -30,6 +31,7 @@ func ParseFlags() Config {
 	regions := flag.String("regions", "", "Comma-separated list of AWS regions to scan")
 	outputFmt := flag.String("output", "text", "Output format: text or json")
 	showVersion := flag.Bool("version", false, "Print version and exit")
+	telemetry := flag.String("telemetry", "", "Save usage reporting preference: on or off (env DO_NOT_TRACK=1 suppresses)")
 
 	flag.Parse()
 
@@ -39,6 +41,7 @@ func ParseFlags() Config {
 		Regions:    parseRegions(*regions),
 		OutputFmt:  *outputFmt,
 		Version:    *showVersion,
+		Telemetry:  *telemetry,
 	}
 }
 

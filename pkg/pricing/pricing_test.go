@@ -51,7 +51,8 @@ func TestLBMonthlyCost(t *testing.T) {
 		{"CLB", 18.00},
 		{"ALB", 22.00},
 		{"NLB", 16.00},
-		{"unknown", 22.00}, // defaults to ALB rate
+		{"GWLB", 18.00},
+		{"unknown", 0.00},
 	}
 
 	for _, tt := range tests {

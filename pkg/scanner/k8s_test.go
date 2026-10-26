@@ -85,7 +85,7 @@ func TestScanOrphanedPVCs_FindsOrphans(t *testing.T) {
 		},
 	}
 
-	result, err := ScanOrphanedPVCs(client)
+	result, err := ScanOrphanedPVCs(context.Background(), client)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestScanOrphanedPVCs_24hSafetyFilter(t *testing.T) {
 		pods: []corev1.Pod{},
 	}
 
-	result, err := ScanOrphanedPVCs(client)
+	result, err := ScanOrphanedPVCs(context.Background(), client)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestScanOrphanedPVCs_SkipsPending(t *testing.T) {
 		pods: []corev1.Pod{},
 	}
 
-	result, err := ScanOrphanedPVCs(client)
+	result, err := ScanOrphanedPVCs(context.Background(), client)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -145,7 +145,7 @@ func TestScanOrphanedPVCs_NoneOrphaned(t *testing.T) {
 		},
 	}
 
-	result, err := ScanOrphanedPVCs(client)
+	result, err := ScanOrphanedPVCs(context.Background(), client)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

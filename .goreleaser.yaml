@@ -21,7 +21,10 @@ builds:
       - amd64
       - arm64
     ldflags:
-      - -s -w -X main.version={{.Version}}
+      - >-
+        -s -w -X main.version={{.Version}}
+        -X main.telemetryHost={{ envOrDefault "ORPHANSCAN_POSTHOG_HOST" "" }}
+        -X main.telemetryProjectToken={{ envOrDefault "ORPHANSCAN_POSTHOG_PROJECT_TOKEN" "" }}
 
 archives:
   - id: default

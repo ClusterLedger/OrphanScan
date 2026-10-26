@@ -11,7 +11,7 @@ import (
 	"github.com/ClusterLedger/OrphanScan/pkg/scanner"
 )
 
-func TestObfuscate(t *testing.T) {
+func Test_obfuscate(t *testing.T) {
 	tests := []struct {
 		input string
 		want  string
@@ -25,9 +25,9 @@ func TestObfuscate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := Obfuscate(tt.input)
+			got := obfuscate(tt.input)
 			if got != tt.want {
-				t.Errorf("Obfuscate(%q) = %q, want %q", tt.input, got, tt.want)
+				t.Errorf("obfuscate(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}
@@ -57,6 +57,42 @@ func TestPrintText_WithFindings(t *testing.T) {
 	}
 	if !strings.Contains(out, "$") {
 		t.Error("missing cost")
+	}
+}
+
+func TestPrintText_AllResourceTypes(t *testing.T) {
+	report := WasteReport{
+		Volumes: []scanner.OrphanedVolume{
+			{VolumeID: "vol-abc123", Region: "us-east-1", SizeGB: 100, Age: 48 * time.Hour},
+		},
+		EIPs: []scanner.OrphanedEIP{
+			{AllocationID: "eipalloc-xyz", PublicIP: "1.2.3.4", Region: "us-east-1"},
+		},
+		LBs: []scanner.IdleLoadBalancer{
+			{Name: "my-alb", Type: "ALB", Region: "us-east-1"},
+			{Name: "my-clb", Type: "CLB", Region: "eu-west-1"},
+		},
+		PVCs: []scanner.OrphanedPVC{
+			{Name: "data-pvc", Namespace: "default", SizeGB: 50, Age: 72 * time.Hour},
+		},
+	}
+
+	var buf bytes.Buffer
+	if err := PrintText(&buf, report); err != nil {
+		t.Fatalf("PrintText error: %v", err)
+	}
+	out := buf.String()
+
+	for _, want := range []string{
+		"Unattached EBS Volumes",
+		"Elastic IPs",
+		"Idle Load Balancers",
+		"Unattached K8s PVCs",
+		"Total Monthly Waste",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q", want)
+		}
 	}
 }
 

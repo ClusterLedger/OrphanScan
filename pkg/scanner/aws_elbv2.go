@@ -14,7 +14,7 @@ type ELBV2Client interface {
 	DescribeTargetHealth(ctx context.Context, params *elbv2.DescribeTargetHealthInput, optFns ...func(*elbv2.Options)) (*elbv2.DescribeTargetHealthOutput, error)
 }
 
-func ScanIdleELBv2(ctx context.Context, client ELBV2Client, region string) ([]IdleLoadBalancer, error) {
+func ScanIdleELBv2(ctx context.Context, client ELBV2Client, region string, warn WarnFunc) ([]IdleLoadBalancer, error) {
 	lbs, err := listELBv2(ctx, client)
 	if err != nil {
 		return nil, err
@@ -30,7 +30,10 @@ func ScanIdleELBv2(ctx context.Context, client ELBV2Client, region string) ([]Id
 
 		hasHealthy, err := hasHealthyTarget(ctx, client, arn)
 		if err != nil {
-			continue // Step 22: log [WARN]
+			if warn != nil {
+				warn("ELBv2 %s health check failed: %v", name, err)
+			}
+			continue
 		}
 		if hasHealthy {
 			continue
@@ -46,11 +49,20 @@ func ScanIdleELBv2(ctx context.Context, client ELBV2Client, region string) ([]Id
 }
 
 func listELBv2(ctx context.Context, client ELBV2Client) ([]elbv2types.LoadBalancer, error) {
-	out, err := client.DescribeLoadBalancers(ctx, &elbv2.DescribeLoadBalancersInput{})
-	if err != nil {
-		return nil, err
+	var all []elbv2types.LoadBalancer
+	input := &elbv2.DescribeLoadBalancersInput{}
+	for {
+		out, err := client.DescribeLoadBalancers(ctx, input)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, out.LoadBalancers...)
+		if out.NextMarker == nil {
+			break
+		}
+		input.Marker = out.NextMarker
 	}
-	return out.LoadBalancers, nil
+	return all, nil
 }
 
 func hasHealthyTarget(ctx context.Context, client ELBV2Client, lbArn string) (bool, error) {
@@ -91,11 +103,11 @@ func hasHealthyTarget(ctx context.Context, client ELBV2Client, lbArn string) (bo
 func lbType(t elbv2types.LoadBalancerTypeEnum) string {
 	switch t {
 	case elbv2types.LoadBalancerTypeEnumApplication:
-		return "ALB"
+		return LBTypeALB
 	case elbv2types.LoadBalancerTypeEnumNetwork:
-		return "NLB"
+		return LBTypeNLB
 	case elbv2types.LoadBalancerTypeEnumGateway:
-		return "GWLB"
+		return LBTypeGWLB
 	default:
 		return string(t)
 	}

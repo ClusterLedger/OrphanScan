@@ -2,7 +2,6 @@ package scanner
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -60,13 +59,7 @@ func ScanAWS(ctx context.Context, cfg aws.Config, regions []string, factory Clie
 			defer wg.Done()
 
 			clients := factory(cfg, region)
-			partial, err := scanRegion(ctx, clients, region)
-			if err != nil {
-				if warn != nil {
-					warn("region %s: %v", region, err)
-				}
-				return
-			}
+			partial := scanRegion(ctx, clients, region, warn)
 
 			mu.Lock()
 			result.Volumes = append(result.Volumes, partial.Volumes...)
@@ -80,32 +73,71 @@ func ScanAWS(ctx context.Context, cfg aws.Config, regions []string, factory Clie
 	return result
 }
 
-func scanRegion(ctx context.Context, clients RegionClients, region string) (AWSScanResult, error) {
-	var result AWSScanResult
+func scanRegion(ctx context.Context, clients RegionClients, region string, warn WarnFunc) AWSScanResult {
+	var (
+		mu     sync.Mutex
+		wg     sync.WaitGroup
+		result AWSScanResult
+	)
 
-	volumes, err := ScanUnattachedVolumes(ctx, clients.EC2, region)
-	if err != nil {
-		return result, fmt.Errorf("volumes: %w", err)
-	}
-	result.Volumes = volumes
+	wg.Add(4)
 
-	eips, err := ScanUnassociatedEIPs(ctx, clients.EC2, region)
-	if err != nil {
-		return result, fmt.Errorf("eips: %w", err)
-	}
-	result.EIPs = eips
+	go func() {
+		defer wg.Done()
+		volumes, err := ScanUnattachedVolumes(ctx, clients.EC2, region)
+		if err != nil {
+			if warn != nil {
+				warn("region %s volumes: %v", region, err)
+			}
+			return
+		}
+		mu.Lock()
+		result.Volumes = volumes
+		mu.Unlock()
+	}()
 
-	clbs, err := ScanIdleClassicLBs(ctx, clients.ELB, region)
-	if err != nil {
-		return result, fmt.Errorf("clb: %w", err)
-	}
-	result.LBs = append(result.LBs, clbs...)
+	go func() {
+		defer wg.Done()
+		eips, err := ScanUnassociatedEIPs(ctx, clients.EC2, region)
+		if err != nil {
+			if warn != nil {
+				warn("region %s eips: %v", region, err)
+			}
+			return
+		}
+		mu.Lock()
+		result.EIPs = eips
+		mu.Unlock()
+	}()
 
-	elbv2LBs, err := ScanIdleELBv2(ctx, clients.ELBV2, region)
-	if err != nil {
-		return result, fmt.Errorf("elbv2: %w", err)
-	}
-	result.LBs = append(result.LBs, elbv2LBs...)
+	go func() {
+		defer wg.Done()
+		clbs, err := ScanIdleClassicLBs(ctx, clients.ELB, region, warn)
+		if err != nil {
+			if warn != nil {
+				warn("region %s classic LBs: %v", region, err)
+			}
+			return
+		}
+		mu.Lock()
+		result.LBs = append(result.LBs, clbs...)
+		mu.Unlock()
+	}()
 
-	return result, nil
+	go func() {
+		defer wg.Done()
+		elbv2LBs, err := ScanIdleELBv2(ctx, clients.ELBV2, region, warn)
+		if err != nil {
+			if warn != nil {
+				warn("region %s ELBv2: %v", region, err)
+			}
+			return
+		}
+		mu.Lock()
+		result.LBs = append(result.LBs, elbv2LBs...)
+		mu.Unlock()
+	}()
+
+	wg.Wait()
+	return result
 }

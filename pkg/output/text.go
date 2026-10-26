@@ -15,13 +15,15 @@ type WasteReport struct {
 	EIPs    []scanner.OrphanedEIP
 	LBs     []scanner.IdleLoadBalancer
 	PVCs    []scanner.OrphanedPVC
+	HasK8s  bool
+	HasAWS  bool
 }
 
 // PrintText writes a human-readable waste audit to w and returns any write error.
 func PrintText(w io.Writer, report WasteReport) error {
 	tw := &textWriter{w: w}
 	tw.println("=== OrphanScan: Waste Audit ===")
-	tw.println("Scanning local kubeconfig and AWS environment...")
+	tw.println(scanSourceMessage(report))
 	tw.println()
 
 	total := printVolumes(tw, report.Volumes) +
@@ -39,8 +41,10 @@ func PrintText(w io.Writer, report WasteReport) error {
 	tw.println("=========================================")
 	tw.printf("Total Monthly Waste Detected: $%.2f\n", total)
 	tw.println("=========================================")
-	tw.println("> Automated cleanup (OrphanSweep) coming soon.")
-	tw.println("> More from ClusterLedger: https://github.com/ClusterLedger")
+	if total > 49 {
+		tw.println("> Automated cleanup (OrphanSweep) coming soon.")
+		tw.println("> More from ClusterLedger: https://github.com/ClusterLedger")
+	}
 	return tw.err
 }
 
@@ -71,7 +75,6 @@ func printVolumes(w *textWriter, volumes []scanner.OrphanedVolume) float64 {
 
 	byRegion := groupBy(volumes, func(v scanner.OrphanedVolume) string { return v.Region })
 	var total float64
-
 	for region, vols := range byRegion {
 		cost := sumCost(vols, func(v scanner.OrphanedVolume) float64 {
 			return pricing.EBSMonthlyCost(v.SizeGB)
@@ -79,7 +82,6 @@ func printVolumes(w *textWriter, volumes []scanner.OrphanedVolume) float64 {
 		total += cost
 		writeFinding(w, len(vols), "Unattached EBS Volumes", region, cost)
 	}
-
 	return total
 }
 
@@ -90,7 +92,6 @@ func printEIPs(w *textWriter, eips []scanner.OrphanedEIP) float64 {
 
 	cost := pricing.EIPMonthlyCost(len(eips))
 	w.printf("[Found] %d Unassociated Elastic IPs. Wasting: $%.2f/mo\n", len(eips), cost)
-
 	return cost
 }
 
@@ -101,7 +102,6 @@ func printLBs(w *textWriter, lbs []scanner.IdleLoadBalancer) float64 {
 
 	byRegion := groupBy(lbs, func(lb scanner.IdleLoadBalancer) string { return lb.Region })
 	var total float64
-
 	for region, regionLBs := range byRegion {
 		cost := sumCost(regionLBs, func(lb scanner.IdleLoadBalancer) float64 {
 			return pricing.LBMonthlyCost(lb.Type)
@@ -109,7 +109,6 @@ func printLBs(w *textWriter, lbs []scanner.IdleLoadBalancer) float64 {
 		total += cost
 		writeFinding(w, len(regionLBs), "Idle Load Balancers", region, cost)
 	}
-
 	return total
 }
 
@@ -150,6 +149,19 @@ func sumCost[T any](items []T, cost func(T) float64) float64 {
 		total += cost(item)
 	}
 	return total
+}
+
+func scanSourceMessage(report WasteReport) string {
+	switch {
+	case report.HasK8s && report.HasAWS:
+		return "Scanning local kubeconfig and AWS environment..."
+	case report.HasK8s:
+		return "Scanning local kubeconfig..."
+	case report.HasAWS:
+		return "Scanning AWS environment..."
+	default:
+		return "Scanning..."
+	}
 }
 
 func uniqueNamespaces(pvcs []scanner.OrphanedPVC) []string {

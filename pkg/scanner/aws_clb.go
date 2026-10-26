@@ -13,13 +13,23 @@ type ELBClient interface {
 	DescribeInstanceHealth(ctx context.Context, params *elb.DescribeInstanceHealthInput, optFns ...func(*elb.Options)) (*elb.DescribeInstanceHealthOutput, error)
 }
 
+const classicInstanceInService = "InService"
+
+// Load balancer type constants used across scanner and pricing.
+const (
+	LBTypeCLB  = "CLB"
+	LBTypeALB  = "ALB"
+	LBTypeNLB  = "NLB"
+	LBTypeGWLB = "GWLB"
+)
+
 type IdleLoadBalancer struct {
 	Name   string
 	Type   string
 	Region string
 }
 
-func ScanIdleClassicLBs(ctx context.Context, client ELBClient, region string) ([]IdleLoadBalancer, error) {
+func ScanIdleClassicLBs(ctx context.Context, client ELBClient, region string, warn WarnFunc) ([]IdleLoadBalancer, error) {
 	lbs, err := listClassicLBs(ctx, client)
 	if err != nil {
 		return nil, err
@@ -34,6 +44,9 @@ func ScanIdleClassicLBs(ctx context.Context, client ELBClient, region string) ([
 
 		healthy, err := hasHealthyClassicInstance(ctx, client, name)
 		if err != nil {
+			if warn != nil {
+				warn("CLB %s health check failed: %v", name, err)
+			}
 			continue
 		}
 
@@ -43,7 +56,7 @@ func ScanIdleClassicLBs(ctx context.Context, client ELBClient, region string) ([
 
 		idle = append(idle, IdleLoadBalancer{
 			Name:   name,
-			Type:   "CLB",
+			Type:   LBTypeCLB,
 			Region: region,
 		})
 	}
@@ -52,12 +65,20 @@ func ScanIdleClassicLBs(ctx context.Context, client ELBClient, region string) ([
 }
 
 func listClassicLBs(ctx context.Context, client ELBClient) ([]elbtypes.LoadBalancerDescription, error) {
-	out, err := client.DescribeLoadBalancers(ctx, &elb.DescribeLoadBalancersInput{})
-	if err != nil {
-		return nil, err
+	var all []elbtypes.LoadBalancerDescription
+	input := &elb.DescribeLoadBalancersInput{}
+	for {
+		out, err := client.DescribeLoadBalancers(ctx, input)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, out.LoadBalancerDescriptions...)
+		if out.NextMarker == nil {
+			break
+		}
+		input.Marker = out.NextMarker
 	}
-
-	return out.LoadBalancerDescriptions, nil
+	return all, nil
 }
 
 func hasHealthyClassicInstance(ctx context.Context, client ELBClient, lbName string) (bool, error) {
@@ -69,7 +90,7 @@ func hasHealthyClassicInstance(ctx context.Context, client ELBClient, lbName str
 	}
 
 	for _, instance := range out.InstanceStates {
-		if instance.State != nil && *instance.State == "InService" {
+		if instance.State != nil && *instance.State == classicInstanceInService {
 			return true, nil
 		}
 	}

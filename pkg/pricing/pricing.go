@@ -1,5 +1,7 @@
 package pricing
 
+import "github.com/ClusterLedger/OrphanScan/pkg/scanner"
+
 const (
 	RateEBSPerGB = 0.08
 	RatePVCPerGB = 0.08
@@ -7,6 +9,7 @@ const (
 	RateCLB      = 18.00
 	RateALB      = 22.00
 	RateNLB      = 16.00
+	RateGWLB     = 18.00
 )
 
 func EBSMonthlyCost(sizeGB int32) float64 {
@@ -23,13 +26,15 @@ func EIPMonthlyCost(count int) float64 {
 
 func LBMonthlyCost(lbType string) float64 {
 	switch lbType {
-	case "CLB":
+	case scanner.LBTypeCLB:
 		return RateCLB
-	case "ALB":
+	case scanner.LBTypeALB:
 		return RateALB
-	case "NLB":
+	case scanner.LBTypeNLB:
 		return RateNLB
+	case scanner.LBTypeGWLB:
+		return RateGWLB
 	default:
-		return RateALB // safe default for unknown types
+		return 0
 	}
 }
