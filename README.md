@@ -59,7 +59,7 @@ Linux / macOS:
 curl -fsSL https://raw.githubusercontent.com/ClusterLedger/OrphanScan/main/install.sh | sh
 ```
 
-Or install with **Go 1.26.9 or newer**:
+Or install with **Go 1.26.10 or newer**:
 
 ```bash
 go install github.com/ClusterLedger/OrphanScan/cmd/orphanscan@latest

@@ -2,6 +2,7 @@
 
 ## 0.1.0 — unreleased beta
 
+- Require Go 1.26.10 or newer to include the crypto/x509 security fix for GO-2026-6809.
 - Present compact terminal reports with source summaries, unavailable/partial estimates, grouped recovery guidance, and optional `--verbose` coverage and pricing details.
 - Match region-discovery guidance to typed failures, and avoid repeating reported scan issues as warnings and final errors.
 - Record completion per source, region, and resource check; report partial coverage and meaningful nonzero exits.

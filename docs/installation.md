@@ -5,7 +5,7 @@
 ## Requirements
 
 - Release binaries support Linux, macOS, and Windows on amd64 and arm64.
-- Installing or building with Go requires **Go 1.26.9 or newer**.
+- Installing or building with Go requires **Go 1.26.10 or newer**.
 - Scanning needs your existing AWS credentials and/or Kubernetes configuration, with the documented [read-only permissions](permissions/README.md). Select only the sources you intend to scan.
 - Authentication may require the external helper already configured in your AWS profile or kubeconfig, such as the AWS CLI for an EKS exec plugin. Use trusted configuration; helpers can execute programs and update their own credential caches. See [credential handling](../SECURITY.md#credential-handling).
 
@@ -30,7 +30,7 @@ The install script must be available in the public repository, and the selected 
 
 ## Go
 
-Requires **Go 1.26.9 or newer**:
+Requires **Go 1.26.10 or newer**:
 
 ```bash
 go install github.com/ClusterLedger/OrphanScan/cmd/orphanscan@latest
