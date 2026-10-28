@@ -1,29 +1,30 @@
+// Package pricing provides documented reference estimates, not billing data.
 package pricing
 
-import "github.com/ClusterLedger/OrphanScan/pkg/scanner"
-
-const (
-	RateEBSPerGB = 0.08
-	RatePVCPerGB = 0.08
-	RateEIP      = 3.60
-	RateCLB      = 18.00
-	RateALB      = 22.00
-	RateNLB      = 16.00
-	RateGWLB     = 18.00
+import (
+	"github.com/ClusterLedger/OrphanScan/pkg/scanner"
+	"math"
 )
 
-func EBSMonthlyCost(sizeGB int32) float64 {
-	return float64(sizeGB) * RateEBSPerGB
-}
+// Reference prices verified against AWS's public us-east-1 pricing on this date.
+// Hourly rates use a 30-day / 720-hour month and exclude usage and taxes.
+const (
+	ReferenceRegion = "us-east-1"
+	ReferenceDate   = "2026-10-26"
+	HoursPerMonth   = 720
+	RateEBSPerGB    = 0.08
+	RatePVCPerGB    = 0.08
+	RateEIP         = 0.005 * HoursPerMonth
+	RateCLB         = 0.025 * HoursPerMonth
+	RateALB         = 0.0225 * HoursPerMonth
+	RateNLB         = 0.0225 * HoursPerMonth
+	RateGWLB        = 0.0125 * HoursPerMonth
+)
 
-func PVCMonthlyCost(sizeGB float64) float64 {
-	return sizeGB * RatePVCPerGB
-}
-
-func EIPMonthlyCost(count int) float64 {
-	return float64(count) * RateEIP
-}
-
+func RoundUSD(value float64) float64        { return math.Round(value*100) / 100 }
+func EBSMonthlyCost(sizeGB int32) float64   { return RoundUSD(float64(sizeGB) * RateEBSPerGB) }
+func PVCMonthlyCost(sizeGB float64) float64 { return RoundUSD(sizeGB * RatePVCPerGB) }
+func EIPMonthlyCost(count int) float64      { return RoundUSD(float64(count) * RateEIP) }
 func LBMonthlyCost(lbType string) float64 {
 	switch lbType {
 	case scanner.LBTypeCLB:
@@ -37,4 +38,12 @@ func LBMonthlyCost(lbType string) float64 {
 	default:
 		return 0
 	}
+}
+
+func LoadBalancerMonthlyCost(lb scanner.IdleLoadBalancer) float64 {
+	rate := LBMonthlyCost(lb.Type)
+	if lb.Type == scanner.LBTypeGWLB {
+		rate *= float64(max(1, lb.Zones))
+	}
+	return RoundUSD(rate)
 }

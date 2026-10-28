@@ -1,6 +1,10 @@
 name: Go tests
 
-on: [push, pull_request]
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_call:
 
 permissions:
   contents: read
@@ -13,14 +17,96 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - name: Run tests with coverage
-        run: go test -count=1 -coverprofile=coverage.out ./...
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: Verify module manifests
+        run: go mod tidy -diff
+      - name: Check formatting
+        shell: bash
+        run: test -z "$(gofmt -l cmd pkg internal scripts)"
+      - name: Run tests with race detection and coverage
+        run: go test -race -count=1 -coverprofile=coverage.out ./...
+      - name: Run vet
+        run: go vet ./...
+      - name: Check documentation links and generated examples
+        run: python scripts/check-docs.py
+      - name: Check reachable vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+      - name: Test installer with offline fixtures
+        run: sh scripts/test-install.sh
+      - name: Install ShellCheck if missing
+        run: |
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y shellcheck
+          fi
+      - name: Check shell scripts
+        run: shellcheck install.sh scripts/*.sh
       - name: Show coverage
         run: go tool cover -func=coverage.out
-      - name: Upload coverage profile
-        uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7
         with:
           name: go-coverage
           path: coverage.out
           if-no-files-found: error
           retention-days: 7
+
+  release-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: Validate release configuration
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: v2.19.0
+          args: check
+      - name: Build all six platform archives without publishing
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: v2.19.0
+          args: release --snapshot --clean --parallelism=2
+        env:
+          ORPHANSCAN_POSTHOG_HOST: ''
+          ORPHANSCAN_POSTHOG_PROJECT_TOKEN: ''
+      - name: Validate archives and staged installation
+        run: python scripts/verify_release.py dist
+
+  platform-smoke:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: Test native platform
+        run: go test ./...
+      - name: Build executable
+        env:
+          CGO_ENABLED: '0'
+        run: go build -trimpath -ldflags='-s -w -X main.version=0.1.0' -o build/orphanscan.exe ./cmd/orphanscan
+      - name: Smoke test executable without cloud access
+        run: python scripts/smoke.py build/orphanscan.exe
+      - name: Test installer on Unix
+        if: runner.os != 'Windows'
+        run: sh scripts/test-install.sh

@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 type recordingSender struct {
@@ -225,5 +227,27 @@ func TestReporterZeroValueIsNoop(t *testing.T) {
 	r := &Reporter{}
 	if err := r.Report(context.Background(), 1); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPromptCancellationDoesNotSaveConsent(t *testing.T) {
+	input, writer := io.Pipe()
+	defer func() { _ = input.Close(); _ = writer.Close() }()
+	sender := &recordingSender{configured: true}
+	path := filepath.Join(t.TempDir(), "telemetry.json")
+	reporter, err := NewReporter(sender, Options{PreferencePath: path, Interactive: true, Input: input, Output: io.Discard})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	if err := reporter.Report(ctx, 5); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("prompt error=%v", err)
+	}
+	if len(sender.costs) != 0 {
+		t.Fatal("cancelled consent was uploaded")
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("cancelled consent saved: %v", err)
 	}
 }

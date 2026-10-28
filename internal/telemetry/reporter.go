@@ -91,15 +91,35 @@ func (r *Reporter) Report(ctx context.Context, estimatedMonthlyWaste float64) er
 	if r.options.DoNotTrack || r.sender == nil || !r.sender.Configured() {
 		return nil
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if r.prompt {
 		if _, err := fmt.Fprint(r.options.Output, invitation); err != nil {
 			return fmt.Errorf("show telemetry invitation: %w", err)
 		}
-		answer, err := bufio.NewReader(r.options.Input).ReadString('\n')
-		if err != nil && !errors.Is(err, io.EOF) {
-			return fmt.Errorf("read telemetry choice: %w", err)
+		type response struct {
+			answer string
+			err    error
 		}
-		answer = strings.ToLower(strings.TrimSpace(answer))
+		answers := make(chan response, 1)
+		go func() {
+			answer, err := bufio.NewReader(r.options.Input).ReadString('\n')
+			answers <- response{answer, err}
+		}()
+		var choice response
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case choice = <-answers:
+		}
+		if choice.err != nil && !errors.Is(choice.err, io.EOF) {
+			return fmt.Errorf("read telemetry choice: %w", choice.err)
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		answer := strings.ToLower(strings.TrimSpace(choice.answer))
 		enabled := answer == "y" || answer == "yes"
 		if err := SavePreference(r.options.PreferencePath, enabled); err != nil {
 			return fmt.Errorf("preference was not saved; reporting disabled for this run: %w", err)

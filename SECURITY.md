@@ -17,9 +17,9 @@ Security fixes are applied to the latest release only.
 
 If you discover a security issue, please report it privately. **Do not open a public GitHub issue.**
 
-Email: **security@clusterledger.io**
+Use [GitHub private vulnerability reporting](https://github.com/ClusterLedger/OrphanScan/security/advisories/new), which is enabled on this repository.
 
-Alternatively, use [GitHub private vulnerability reporting](https://github.com/ClusterLedger/OrphanScan/security/advisories/new) if enabled on this repository.
+Maintainer contact: **security@clusterledger.io**.
 
 Please include:
 - A description of the vulnerability and its potential impact.
@@ -30,7 +30,9 @@ We will acknowledge receipt within 3 business days and aim to provide a fix or m
 
 ## Credential handling
 
-OrphanScan reads credentials through the standard AWS SDK default chain and Kubernetes kubeconfig. It never writes credentials to disk, logs, or stdout. Resource identifiers in scan output are obfuscated by default.
+OrphanScan reads credentials through the standard AWS SDK default chain and Kubernetes kubeconfig. It does not add a credential store. SDKs and configured external credential helpers can update their normal credential caches. Use trusted profiles and kubeconfig files because they can execute helper programs.
+
+Resource names, namespaces, IPs, and identifiers in reports are masked with no reveal flag. Known AWS ID types retain a fixed type prefix and four trailing hex characters. OrphanScan-generated provider errors are converted to generic diagnostics before reaching stdout or stderr, so they do not expose account identifiers or cluster URLs. External credential helpers are separate trusted programs and can produce their own diagnostics. Masking is an output policy, not an access-control boundary in an open-source project.
 
 ## Optional usage reporting
 

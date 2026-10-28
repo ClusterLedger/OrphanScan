@@ -1,0 +1,34 @@
+name: Bug report
+description: Report installation problems, scan failures, or false positives.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Remove credentials, kubeconfig contents, resource identifiers, and private URLs before posting.
+        Report security issues privately using SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Version and platform
+      description: Output of orphanscan --version, OS, and architecture.
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command and requested coverage
+      description: Include flags, source selection, and regions. Redact profile/context names when sensitive.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+      description: Include the exit code and complete/partial/failed status.
+    validations:
+      required: true
+  - type: textarea
+    id: warnings
+    attributes:
+      label: Sanitized warnings or report excerpt
+      description: Check third-party credential helper output for sensitive data before sharing.

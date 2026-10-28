@@ -1,0 +1,19 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "OrphanScanReadOnlyDiscovery",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeRegions",
+        "ec2:DescribeVolumes",
+        "ec2:DescribeAddresses",
+        "elasticloadbalancing:DescribeLoadBalancers",
+        "elasticloadbalancing:DescribeInstanceHealth",
+        "elasticloadbalancing:DescribeTargetGroups",
+        "elasticloadbalancing:DescribeTargetHealth"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

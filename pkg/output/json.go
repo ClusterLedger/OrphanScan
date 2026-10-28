@@ -12,11 +12,32 @@ import (
 // --- JSON wire types ---
 
 type jsonReport struct {
-	Volumes []jsonVolume `json:"unattached_ebs_volumes,omitempty"`
-	EIPs    []jsonEIP    `json:"unassociated_eips,omitempty"`
-	LBs     []jsonLB     `json:"idle_load_balancers,omitempty"`
-	PVCs    []jsonPVC    `json:"unattached_pvcs,omitempty"`
-	Total   float64      `json:"total_monthly_waste"`
+	SchemaVersion      int             `json:"schema_version"`
+	Status             string          `json:"status"`
+	Checks             []scanner.Check `json:"checks"`
+	Currency           string          `json:"currency"`
+	Pricing            jsonPricing     `json:"pricing"`
+	AWSEstimate        float64         `json:"estimated_aws_monthly_cost_usd"`
+	KubernetesEstimate float64         `json:"estimated_kubernetes_monthly_cost_usd"`
+	LBReviews          []jsonLBReview  `json:"load_balancers_for_review,omitempty"`
+	Volumes            []jsonVolume    `json:"unattached_ebs_volumes,omitempty"`
+	EIPs               []jsonEIP       `json:"unassociated_eips,omitempty"`
+	LBs                []jsonLB        `json:"idle_load_balancers,omitempty"`
+	PVCs               []jsonPVC       `json:"unattached_pvcs,omitempty"`
+}
+
+type jsonPricing struct {
+	Model           string `json:"model"`
+	ReferenceRegion string `json:"reference_region"`
+	ReferenceDate   string `json:"reference_date"`
+	HoursPerMonth   int    `json:"hours_per_month"`
+}
+
+type jsonLBReview struct {
+	Name   string `json:"name"`
+	Type   string `json:"type"`
+	Region string `json:"region"`
+	Reason string `json:"reason"`
 }
 
 type jsonVolume struct {
@@ -60,29 +81,35 @@ func PrintJSON(w io.Writer, report WasteReport) error {
 // --- report assembly ---
 
 func buildJSONReport(report WasteReport) jsonReport {
-	volumes, volCost := mapVolumes(report.Volumes)
-	eips, eipCost := mapEIPs(report.EIPs)
-	lbs, lbCost := mapLBs(report.LBs)
-	pvcs, pvcCost := mapPVCs(report.PVCs)
-
+	report = sortedReport(report)
+	volumes := mapVolumes(report.Volumes)
+	eips := mapEIPs(report.EIPs)
+	lbs := mapLBs(report.LBs)
+	pvcs := mapPVCs(report.PVCs)
+	reviews := make([]jsonLBReview, 0, len(report.LBReviews))
+	for _, lb := range report.LBReviews {
+		reviews = append(reviews, jsonLBReview{Name: obfuscate(lb.Name), Type: lb.Type, Region: lb.Region, Reason: lb.Reason})
+	}
+	checks := report.Checks
+	if checks == nil {
+		checks = []scanner.Check{}
+	}
+	costs := report.Costs()
 	return jsonReport{
-		Volumes: volumes,
-		EIPs:    eips,
-		LBs:     lbs,
-		PVCs:    pvcs,
-		Total:   volCost + eipCost + lbCost + pvcCost,
+		SchemaVersion: 1, Status: report.Status(), Checks: checks, Currency: "USD",
+		Pricing:     jsonPricing{Model: "baseline", ReferenceRegion: pricing.ReferenceRegion, ReferenceDate: pricing.ReferenceDate, HoursPerMonth: pricing.HoursPerMonth},
+		AWSEstimate: costs.AWS, KubernetesEstimate: costs.Kubernetes,
+		Volumes: volumes, EIPs: eips, LBs: lbs, PVCs: pvcs, LBReviews: reviews,
 	}
 }
 
 // --- per-resource mappers ---
 
-func mapVolumes(volumes []scanner.OrphanedVolume) ([]jsonVolume, float64) {
+func mapVolumes(volumes []scanner.OrphanedVolume) []jsonVolume {
 	out := make([]jsonVolume, 0, len(volumes))
-	var total float64
 
 	for _, v := range volumes {
 		cost := pricing.EBSMonthlyCost(v.SizeGB)
-		total += cost
 		out = append(out, jsonVolume{
 			VolumeID:    obfuscate(v.VolumeID),
 			Region:      v.Region,
@@ -92,16 +119,14 @@ func mapVolumes(volumes []scanner.OrphanedVolume) ([]jsonVolume, float64) {
 		})
 	}
 
-	return out, total
+	return out
 }
 
-func mapEIPs(eips []scanner.OrphanedEIP) ([]jsonEIP, float64) {
+func mapEIPs(eips []scanner.OrphanedEIP) []jsonEIP {
 	out := make([]jsonEIP, 0, len(eips))
-	var total float64
 
 	for _, e := range eips {
 		cost := pricing.EIPMonthlyCost(1)
-		total += cost
 		out = append(out, jsonEIP{
 			AllocationID: obfuscate(e.AllocationID),
 			PublicIP:     obfuscate(e.PublicIP),
@@ -110,16 +135,14 @@ func mapEIPs(eips []scanner.OrphanedEIP) ([]jsonEIP, float64) {
 		})
 	}
 
-	return out, total
+	return out
 }
 
-func mapLBs(lbs []scanner.IdleLoadBalancer) ([]jsonLB, float64) {
+func mapLBs(lbs []scanner.IdleLoadBalancer) []jsonLB {
 	out := make([]jsonLB, 0, len(lbs))
-	var total float64
 
 	for _, lb := range lbs {
-		cost := pricing.LBMonthlyCost(lb.Type)
-		total += cost
+		cost := pricing.LoadBalancerMonthlyCost(lb)
 		out = append(out, jsonLB{
 			Name:        obfuscate(lb.Name),
 			Type:        lb.Type,
@@ -128,23 +151,21 @@ func mapLBs(lbs []scanner.IdleLoadBalancer) ([]jsonLB, float64) {
 		})
 	}
 
-	return out, total
+	return out
 }
 
-func mapPVCs(pvcs []scanner.OrphanedPVC) ([]jsonPVC, float64) {
+func mapPVCs(pvcs []scanner.OrphanedPVC) []jsonPVC {
 	out := make([]jsonPVC, 0, len(pvcs))
-	var total float64
 
 	for _, pvc := range pvcs {
 		cost := pricing.PVCMonthlyCost(pvc.SizeGB)
-		total += cost
 		out = append(out, jsonPVC{
 			Name:        obfuscate(pvc.Name),
-			Namespace:   pvc.Namespace,
+			Namespace:   obfuscate(pvc.Namespace),
 			SizeGB:      pvc.SizeGB,
 			MonthlyCost: cost,
 		})
 	}
 
-	return out, total
+	return out
 }

@@ -23,7 +23,7 @@ func (m *mockKubeClient) ListPVCs(ctx context.Context) ([]corev1.PersistentVolum
 	return m.pvcs, m.err
 }
 
-func (m *mockKubeClient) ListRunningPods(ctx context.Context) ([]corev1.Pod, error) {
+func (m *mockKubeClient) ListPods(ctx context.Context) ([]corev1.Pod, error) {
 	return m.pods, m.err
 }
 

@@ -118,7 +118,7 @@ func TestScanIdleClassicLBs_WarnsOnHealthCheckError(t *testing.T) {
 	client := &stubELBClient{
 		lbs: &elb.DescribeLoadBalancersOutput{
 			LoadBalancerDescriptions: []elbtypes.LoadBalancerDescription{
-				{LoadBalancerName: aws.String("my-clb")},
+				{LoadBalancerName: aws.String("my-clb"), Instances: []elbtypes.Instance{{InstanceId: aws.String("i-test")}}},
 			},
 		},
 		hErr: errors.New("health check failed"),

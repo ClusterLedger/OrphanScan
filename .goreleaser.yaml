@@ -5,12 +5,15 @@ project_name: orphanscan
 
 before:
   hooks:
-    - go mod tidy
+    - go mod tidy -diff
+    - go run ./scripts/check-telemetry
 
 builds:
   - id: orphanscan
     main: ./cmd/orphanscan
     binary: orphanscan
+    flags:
+      - -trimpath
     env:
       - CGO_ENABLED=0
     goos:
@@ -28,6 +31,16 @@ builds:
 
 archives:
   - id: default
+    files:
+      - LICENSE
+      - README.md
+      - SECURITY.md
+      - CHANGELOG.md
+      - CONTRIBUTING.md
+      - docs/*.md
+      - docs/images/*
+      - docs/permissions/*
+      - examples/*
     formats:
       - tar.gz
     name_template: >-

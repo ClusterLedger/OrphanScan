@@ -10,134 +10,142 @@ import (
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 )
 
-// AWSScanResult holds all orphaned AWS resources across regions.
+const DefaultConcurrency = 4
+
+// AWSScanResult retains successful findings and the status of every check.
 type AWSScanResult struct {
-	Volumes []OrphanedVolume
-	EIPs    []OrphanedEIP
-	LBs     []IdleLoadBalancer
+	Volumes   []OrphanedVolume
+	EIPs      []OrphanedEIP
+	LBs       []IdleLoadBalancer
+	LBReviews []LoadBalancerReview
+	Checks    []Check
 }
 
-// RegionClients holds the three clients for a single region.
 type RegionClients struct {
 	EC2   EC2Client
 	ELB   ELBClient
 	ELBV2 ELBV2Client
 }
 
-// ClientFactory builds region-scoped clients from a base AWS config.
 type ClientFactory func(cfg aws.Config, region string) RegionClients
 
-// DefaultClientFactory creates real AWS SDK clients for a region.
 func DefaultClientFactory(cfg aws.Config, region string) RegionClients {
 	regional := cfg.Copy()
 	regional.Region = region
-
 	return RegionClients{
-		EC2:   ec2.NewFromConfig(regional),
-		ELB:   elb.NewFromConfig(regional),
-		ELBV2: elbv2.NewFromConfig(regional),
+		EC2: ec2.NewFromConfig(regional), ELB: elb.NewFromConfig(regional), ELBV2: elbv2.NewFromConfig(regional),
 	}
 }
 
-// WarnFunc is a callback for non-fatal warnings during scanning.
 type WarnFunc func(format string, args ...any)
 
 func ScanAWS(ctx context.Context, cfg aws.Config, regions []string, factory ClientFactory, warn WarnFunc) AWSScanResult {
+	return ScanAWSWithConcurrency(ctx, cfg, regions, factory, warn, DefaultConcurrency)
+}
+
+// ScanAWSWithConcurrency bounds concurrent regions. Each region has four
+// independent checks. Duplicate regions run once.
+func ScanAWSWithConcurrency(ctx context.Context, cfg aws.Config, regions []string, factory ClientFactory, warn WarnFunc, concurrency int) AWSScanResult {
 	if factory == nil {
 		factory = DefaultClientFactory
 	}
-
-	var (
-		mu     sync.Mutex
-		wg     sync.WaitGroup
-		result AWSScanResult
-	)
-
-	for _, region := range regions {
-		wg.Add(1)
-		go func(region string) {
-			defer wg.Done()
-
-			clients := factory(cfg, region)
-			partial := scanRegion(ctx, clients, region, warn)
-
-			mu.Lock()
-			result.Volumes = append(result.Volumes, partial.Volumes...)
-			result.EIPs = append(result.EIPs, partial.EIPs...)
-			result.LBs = append(result.LBs, partial.LBs...)
-			mu.Unlock()
-		}(region)
+	if concurrency < 1 {
+		concurrency = DefaultConcurrency
 	}
-
+	jobs := make(chan string, len(regions))
+	seen := make(map[string]bool)
+	for _, region := range regions {
+		if !seen[region] {
+			jobs <- region
+			seen[region] = true
+		}
+	}
+	close(jobs)
+	var warnMu sync.Mutex
+	if warn != nil {
+		callback := warn
+		warn = func(format string, args ...any) {
+			warnMu.Lock()
+			defer warnMu.Unlock()
+			callback(format, args...)
+		}
+	}
+	var result AWSScanResult
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	for range min(concurrency, len(seen)) {
+		wg.Go(func() {
+			for region := range jobs {
+				var partial AWSScanResult
+				if err := ctx.Err(); err != nil {
+					for _, resource := range []string{"ebs_volumes", "elastic_ips", "classic_load_balancers", "elbv2_load_balancers"} {
+						partial.Checks = append(partial.Checks, newCheck(resource, region, err))
+					}
+				} else {
+					partial = scanRegion(ctx, factory(cfg, region), region, warn)
+				}
+				mu.Lock()
+				result.Volumes = append(result.Volumes, partial.Volumes...)
+				result.EIPs = append(result.EIPs, partial.EIPs...)
+				result.LBs = append(result.LBs, partial.LBs...)
+				result.LBReviews = append(result.LBReviews, partial.LBReviews...)
+				result.Checks = append(result.Checks, partial.Checks...)
+				mu.Unlock()
+			}
+		})
+	}
 	wg.Wait()
 	return result
 }
 
 func scanRegion(ctx context.Context, clients RegionClients, region string, warn WarnFunc) AWSScanResult {
-	var (
-		mu     sync.Mutex
-		wg     sync.WaitGroup
-		result AWSScanResult
-	)
-
-	wg.Add(4)
-
-	go func() {
-		defer wg.Done()
+	var result AWSScanResult
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	addCheck := func(check Check) {
+		result.Checks = append(result.Checks, check)
+		if check.Error != "" && warn != nil {
+			warn("region %s %s: %s", region, check.Resource, check.Error)
+		}
+	}
+	wg.Go(func() {
 		volumes, err := ScanUnattachedVolumes(ctx, clients.EC2, region)
-		if err != nil {
-			if warn != nil {
-				warn("region %s volumes: %v", region, err)
-			}
-			return
-		}
 		mu.Lock()
+		defer mu.Unlock()
 		result.Volumes = volumes
-		mu.Unlock()
-	}()
-
-	go func() {
-		defer wg.Done()
+		addCheck(newCheck("ebs_volumes", region, err))
+	})
+	wg.Go(func() {
 		eips, err := ScanUnassociatedEIPs(ctx, clients.EC2, region)
-		if err != nil {
-			if warn != nil {
-				warn("region %s eips: %v", region, err)
-			}
-			return
-		}
 		mu.Lock()
+		defer mu.Unlock()
 		result.EIPs = eips
-		mu.Unlock()
-	}()
-
-	go func() {
-		defer wg.Done()
-		clbs, err := ScanIdleClassicLBs(ctx, clients.ELB, region, warn)
-		if err != nil {
-			if warn != nil {
-				warn("region %s classic LBs: %v", region, err)
+		addCheck(newCheck("elastic_ips", region, err))
+	})
+	for _, task := range []struct {
+		resource string
+		scan     func() (loadBalancerResult, error)
+	}{
+		{"classic_load_balancers", func() (loadBalancerResult, error) { return scanClassicLBs(ctx, clients.ELB, region, nil) }},
+		{"elbv2_load_balancers", func() (loadBalancerResult, error) { return scanELBv2(ctx, clients.ELBV2, region, nil) }},
+	} {
+		wg.Go(func() {
+			lbs, err := task.scan()
+			check := newCheck(task.resource, region, err)
+			if err == nil && len(lbs.Errors) > 0 {
+				check.Status = StatusPartial
+				if lbs.Inspected == 0 {
+					check.Status = StatusFailed
+				}
+				check.Error = lbs.Errors[0]
 			}
-			return
-		}
-		mu.Lock()
-		result.LBs = append(result.LBs, clbs...)
-		mu.Unlock()
-	}()
-
-	go func() {
-		defer wg.Done()
-		elbv2LBs, err := ScanIdleELBv2(ctx, clients.ELBV2, region, warn)
-		if err != nil {
-			if warn != nil {
-				warn("region %s ELBv2: %v", region, err)
-			}
-			return
-		}
-		mu.Lock()
-		result.LBs = append(result.LBs, elbv2LBs...)
-		mu.Unlock()
-	}()
-
+			mu.Lock()
+			defer mu.Unlock()
+			result.LBs = append(result.LBs, lbs.Idle...)
+			result.LBReviews = append(result.LBReviews, lbs.Review...)
+			addCheck(check)
+		})
+	}
 	wg.Wait()
 	return result
 }

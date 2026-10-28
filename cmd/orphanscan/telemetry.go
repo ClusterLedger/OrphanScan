@@ -1,47 +1,45 @@
 package main
 
 import (
-	"os"
+	"context"
+	"fmt"
 	"path/filepath"
 
-	"golang.org/x/term"
-
 	"github.com/ClusterLedger/OrphanScan/internal/telemetry"
-	"github.com/ClusterLedger/OrphanScan/pkg/output"
+	"github.com/ClusterLedger/OrphanScan/pkg/report"
+	"github.com/ClusterLedger/OrphanScan/pkg/scanner"
 )
 
-func newUsageReporter(cfg Config, host, token string) *telemetry.Reporter {
-	doNotTrack := os.Getenv("DO_NOT_TRACK") == "1"
+func newUsageReporter(cfg Config, host, token string, runtime commandRuntime) (*telemetry.Reporter, error) {
 	client, err := telemetry.NewClient(host, token)
 	if err != nil {
-		output.Warn("Usage reporting disabled: %v", err)
-		return &telemetry.Reporter{}
+		return &telemetry.Reporter{}, err
 	}
 	if !client.Configured() && cfg.Telemetry == "" {
-		return &telemetry.Reporter{}
+		return &telemetry.Reporter{}, nil
 	}
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		output.Warn("Usage reporting disabled; preference could not be read or saved: %v", err)
-		return &telemetry.Reporter{}
+	if runtime.configDirErr != nil {
+		return &telemetry.Reporter{}, fmt.Errorf("preference could not be read or saved: %w", runtime.configDirErr)
 	}
-	reporter, err := telemetry.NewReporter(client, telemetry.Options{
+	return telemetry.NewReporter(client, telemetry.Options{
 		Mode:           cfg.Telemetry,
-		DoNotTrack:     doNotTrack,
-		PreferencePath: filepath.Join(configDir, "orphanscan", "telemetry.json"),
-		Interactive:    canPromptForTelemetry(cfg.OutputFmt, os.Getenv("CI")),
-		Input:          os.Stdin,
-		Output:         os.Stderr,
+		DoNotTrack:     runtime.doNotTrack,
+		PreferencePath: filepath.Join(runtime.configDir, "orphanscan", "telemetry.json"),
+		Interactive:    canPromptForTelemetry(cfg.OutputFmt, runtime),
+		Input:          runtime.stdin,
+		Output:         runtime.stderr,
 	})
-	if err != nil {
-		output.Warn("Usage reporting disabled: %v", err)
-	}
-	return reporter
 }
 
-func canPromptForTelemetry(format, ci string) bool {
-	return format == "text" && ci == "" &&
-		term.IsTerminal(int(os.Stdin.Fd())) &&
-		term.IsTerminal(int(os.Stdout.Fd())) &&
-		term.IsTerminal(int(os.Stderr.Fd()))
+func canPromptForTelemetry(format string, runtime commandRuntime) bool {
+	return format == "text" && runtime.ci == "" && runtime.terminal
+}
+
+func reportUsage(ctx context.Context, result report.WasteReport, usage *telemetry.Reporter, warn scanner.WarnFunc) {
+	if ctx.Err() != nil {
+		return
+	}
+	if err := usage.Report(ctx, result.PreferredMonthlyEstimate()); err != nil && warn != nil {
+		warn("Usage reporting could not complete; no scan details were uploaded")
+	}
 }

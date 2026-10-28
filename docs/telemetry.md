@@ -1,5 +1,7 @@
 # Optional scan metrics
 
+[Back to README](../README.md) · [Usage](usage.md) · [Security policy](../SECURITY.md#optional-usage-reporting)
+
 OrphanScan offers opt-in reporting to help maintain the project. It measures two things: the number of reported scans and estimated monthly waste per scan. The maintainers view those metrics in a private PostHog dashboard.
 
 ## Consent and local storage
@@ -16,6 +18,12 @@ Only `y` or `yes` enables reporting. Enter, No, or any other answer disables it.
 
 `--telemetry=on` and `--telemetry=off` change and save the preference before scanning, even if the scan subsequently fails. `DO_NOT_TRACK=1` suppresses reporting, prompting, and preference changes for the current invocation, taking precedence over either flag.
 
+```bash
+orphanscan --telemetry=on --sources=aws --regions us-east-1
+orphanscan --telemetry=off --sources=aws --regions us-east-1
+DO_NOT_TRACK=1 orphanscan --sources=aws --regions us-east-1
+```
+
 The preference is stored at `orphanscan/telemetry.json` inside Go's [`os.UserConfigDir()`](https://pkg.go.dev/os#UserConfigDir):
 
 - Linux: `$XDG_CONFIG_HOME/orphanscan/telemetry.json`, or `~/.config/orphanscan/telemetry.json`.
@@ -26,7 +34,7 @@ Its complete contents are `{"enabled":true}` or `{"enabled":false}`. No installa
 
 ## What is sent
 
-For each opted-in, successfully rendered scan, the CLI makes one HTTPS POST to the configured PostHog Cloud ingestion host's `/i/v0/e/` endpoint. Empty and partial scan reports are included; help, version, fatal scan failures, and output failures are excluded.
+For each opted-in, successfully rendered scan, the CLI makes one HTTPS POST to the configured PostHog Cloud ingestion host's `/i/v0/e/` endpoint. Complete empty scans and partial reports with usable results are eligible. Failed scans, interrupted/timed-out invocations, help, version, and output failures are excluded. Partial scans still return exit code 3 independently of reporting.
 
 An example event is:
 
@@ -43,7 +51,7 @@ An example event is:
 }
 ```
 
-The dashboard counts events to calculate the number of reported scans. The sole application metric is `estimated_monthly_waste_usd`, using the same pricing calculation as text and JSON output. Resource counts, names, IDs, accounts, regions, namespaces, credentials, raw errors, scan status, and CLI version are not sent. There is no persistent identifier connecting separate scans, and PostHog is instructed not to create person profiles. See the [capture API documentation](https://posthog.com/docs/api/capture).
+The dashboard counts events to calculate the number of reported scans. The sole application metric is `estimated_monthly_waste_usd`, using the same pricing calculation as text and JSON output. Because AWS and PVC findings may describe the same disk, the metric is the AWS subtotal if any AWS check returned usable results (including a successful empty AWS check); otherwise it is the Kubernetes subtotal. The two are never added. The report exposes both subtotals separately and records reference pricing assumptions; the telemetry payload remains limited to the one numeric metric. Resource counts, names, IDs, accounts, regions, namespaces, credentials, raw errors, scan status, and CLI version are not sent. There is no persistent identifier connecting separate scans, and PostHog is instructed not to create person profiles. See the [capture API documentation](https://posthog.com/docs/api/capture).
 
 The provider still receives the HTTP request and its source IP. Disable IP capture in the PostHog project as described below. Dashboard access, provider processing, and retention are separate from the CLI's minimal payload; the reporting should not be described as completely anonymous.
 

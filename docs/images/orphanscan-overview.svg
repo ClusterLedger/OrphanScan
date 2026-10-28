@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Editable source for the README and social image. Export from the repository root:
+     magick -background white docs/images/orphanscan-overview.svg -strip PNG24:docs/images/orphanscan-overview.png
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title description">
+  <title id="title">How OrphanScan works</title>
+  <desc id="description">AWS EBS volumes, Elastic IPs, load balancers, and Kubernetes PVCs feed a read-only scan using existing credentials. Its masked text or JSON report shows candidate findings, complete, partial, or failed coverage, and separate AWS and Kubernetes monthly baseline cost estimates. People investigate candidates before cleanup; storage estimates may overlap.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 1 1 L 9 5 L 1 9" fill="none" stroke="#647875" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="#f7faf9"/>
+  <g font-family="Liberation Sans, Arial, sans-serif" fill="#19352f">
+    <!-- Introduction -->
+    <text x="72" y="79" font-size="24" font-weight="700" letter-spacing="2" fill="#0f766e">HOW IT WORKS</text>
+    <text x="72" y="151" font-size="60" font-weight="700" letter-spacing="-1.5">OrphanScan</text>
+    <text x="72" y="202" font-size="29" fill="#455e57">Find forgotten resource candidates. Understand their ongoing cost.</text>
+    <rect x="1400" y="104" width="128" height="46" rx="23" fill="#e0eeea"/>
+    <text x="1464" y="135" text-anchor="middle" font-size="24" font-weight="700" fill="#0f766e">BETA</text>
+
+    <!-- Stage labels -->
+    <g font-size="24" font-weight="700">
+      <text x="72" y="260"><tspan fill="#0f766e">01</tspan><tspan dx="12">SOURCES</tspan></text>
+      <text x="464" y="260"><tspan fill="#0f766e">02</tspan><tspan dx="12">SCAN</tspan></text>
+      <text x="816" y="260"><tspan fill="#0f766e">03</tspan><tspan dx="12">REPORT</tspan></text>
+      <text x="1264" y="260"><tspan fill="#0f766e">04</tspan><tspan dx="12">REVIEW</tspan></text>
+    </g>
+
+    <!-- Inputs: either or both sources can be selected. -->
+    <rect x="72" y="292" width="320" height="220" rx="16" fill="#ffffff" stroke="#cfddd8" stroke-width="2"/>
+    <text x="100" y="338" font-size="32" font-weight="700">AWS</text>
+    <g font-size="26" fill="#354f47">
+      <text x="100" y="380">EBS volumes</text>
+      <text x="100" y="416">Elastic IPs</text>
+      <text x="100" y="452">Load balancers</text>
+    </g>
+    <text x="100" y="490" font-size="24" fill="#526a62">One or more regions</text>
+
+    <rect x="72" y="540" width="320" height="144" rx="16" fill="#ffffff" stroke="#cfddd8" stroke-width="2"/>
+    <text x="100" y="586" font-size="32" font-weight="700">Kubernetes</text>
+    <text x="100" y="624" font-size="26" fill="#354f47">PVCs</text>
+    <text x="100" y="660" font-size="24" fill="#526a62">Selected cluster context</text>
+
+    <!-- Arrows merge source observations into the scan, then move through the report to review. -->
+    <g fill="none" stroke="#647875" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M 392 402 H 420 V 488"/>
+      <path d="M 392 612 H 420 V 488"/>
+      <path d="M 420 488 H 450" marker-end="url(#arrow)"/>
+      <path d="M 744 488 H 804" marker-end="url(#arrow)"/>
+      <path d="M 1192 488 H 1252" marker-end="url(#arrow)"/>
+    </g>
+
+    <!-- Scanner -->
+    <rect x="464" y="292" width="280" height="392" rx="16" fill="#0f766e"/>
+    <g fill="#ffffff">
+      <path d="M 498 330 L 510 341 L 498 352 M 520 352 H 538" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="496" y="402" font-size="29" font-weight="700">Read-only scan</text>
+      <text x="496" y="451" font-size="26">Inspect resource</text>
+      <text x="496" y="487" font-size="26">state + references</text>
+      <path d="M 496 526 H 712" fill="none" stroke="#6db3a8" stroke-width="2"/>
+      <text x="496" y="574" font-size="26">Uses existing</text>
+      <text x="496" y="610" font-size="26">credentials</text>
+      <text x="496" y="651" font-size="24" fill="#d2efea">Snapshot checks</text>
+    </g>
+
+    <!-- Report: baseline subtotals are kept separate. No sample savings figures. -->
+    <rect x="816" y="292" width="376" height="392" rx="16" fill="#ffffff" stroke="#cfddd8" stroke-width="2"/>
+    <text x="844" y="338" font-size="32" font-weight="700">Masked report</text>
+    <text x="844" y="380" font-size="26" fill="#354f47">Candidate findings</text>
+    <text x="844" y="416" font-size="24" fill="#526a62">Text / JSON</text>
+    <path d="M 844 441 H 1164" fill="none" stroke="#dce5e1" stroke-width="2"/>
+    <text x="844" y="480" font-size="26" font-weight="700">Scan coverage</text>
+    <text x="844" y="513" font-size="24" fill="#354f47">Complete / partial / failed</text>
+    <rect x="840" y="537" width="328" height="123" rx="10" fill="#e9f4ef"/>
+    <text x="860" y="570" font-size="24" font-weight="700" fill="#0f766e">Baseline cost / month</text>
+    <text x="860" y="606" font-size="24">AWS estimate</text>
+    <text x="860" y="641" font-size="24">Kubernetes estimate</text>
+
+    <!-- Review is a human decision outside the CLI. -->
+    <text x="1264" y="338" font-size="32" font-weight="700">Human review</text>
+    <text x="1264" y="396" font-size="26" fill="#354f47">Investigate</text>
+    <text x="1264" y="432" font-size="26" fill="#354f47">each candidate.</text>
+    <path d="M 1264 467 H 1528" fill="none" stroke="#cfddd8" stroke-width="2"/>
+    <text x="1264" y="510" font-size="25" fill="#354f47">Check ownership</text>
+    <text x="1264" y="545" font-size="25" fill="#354f47">+ workload intent</text>
+    <text x="1264" y="603" font-size="25" fill="#354f47">Decide whether</text>
+    <text x="1264" y="638" font-size="25" fill="#354f47">cleanup is safe.</text>
+
+    <!-- Caption and repository address travel with the social image. -->
+    <path d="M 72 754 H 1528" fill="none" stroke="#cfddd8" stroke-width="2"/>
+    <text x="72" y="799" font-size="25" fill="#455e57">Investigate candidates before cleanup. Storage estimates may overlap.</text>
+    <text x="72" y="847" font-size="25" font-weight="700" fill="#0f766e">github.com/ClusterLedger/OrphanScan</text>
+    <text x="1528" y="847" text-anchor="end" font-size="24" fill="#526a62">AWS and Kubernetes estimates stay separate.</text>
+  </g>
+</svg>

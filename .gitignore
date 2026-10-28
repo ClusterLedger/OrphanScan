@@ -5,6 +5,8 @@ dist/
 
 # Test artifacts
 coverage.out
+__pycache__/
+build/
 
 # IDE
 .idea/

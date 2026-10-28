@@ -1,6 +1,7 @@
 package pricing
 
 import (
+	"github.com/ClusterLedger/OrphanScan/pkg/scanner"
 	"math"
 	"testing"
 )
@@ -49,9 +50,9 @@ func TestLBMonthlyCost(t *testing.T) {
 		want   float64
 	}{
 		{"CLB", 18.00},
-		{"ALB", 22.00},
-		{"NLB", 16.00},
-		{"GWLB", 18.00},
+		{"ALB", 16.20},
+		{"NLB", 16.20},
+		{"GWLB", 9.00},
 		{"unknown", 0.00},
 	}
 
@@ -67,4 +68,13 @@ func TestLBMonthlyCost(t *testing.T) {
 
 func almostEqual(a, b float64) bool {
 	return math.Abs(a-b) < 0.001
+}
+
+func TestGatewayZonesAndFractionalStorage(t *testing.T) {
+	if got := LoadBalancerMonthlyCost(scanner.IdleLoadBalancer{Type: "GWLB", Zones: 2}); got != 18 {
+		t.Fatalf("two-zone GWLB=%v", got)
+	}
+	if got := PVCMonthlyCost(0.13); got != 0.01 {
+		t.Fatalf("rounded PVC=%v", got)
+	}
 }

@@ -6,10 +6,17 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+  lint:
+    uses: ./.github/workflows/lint.yml
   goreleaser:
+    needs: [test, lint]
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -22,11 +29,18 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Check release configuration
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: v2.19.0
+          args: check
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
-          version: "~> v2"
+          version: v2.19.0
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -20,7 +20,7 @@ func Test_obfuscate(t *testing.T) {
 		{"eipalloc-abc123def456", "eipalloc-***f456"},
 		{"short", "***"},
 		{"i-1234abcd", "i-***abcd"},
-		{"nodash12345678", "***5678"},
+		{"nodash12345678", "***"},
 	}
 
 	for _, tt := range tests {
@@ -52,8 +52,8 @@ func TestPrintText_WithFindings(t *testing.T) {
 	if !strings.Contains(out, "OrphanScan") {
 		t.Error("missing header")
 	}
-	if !strings.Contains(out, "[Found]") {
-		t.Error("missing [Found] line")
+	if !strings.Contains(out, "Findings (candidates for review)") {
+		t.Error("missing findings section")
 	}
 	if !strings.Contains(out, "$") {
 		t.Error("missing cost")
@@ -84,11 +84,11 @@ func TestPrintText_AllResourceTypes(t *testing.T) {
 	out := buf.String()
 
 	for _, want := range []string{
-		"Unattached EBS Volumes",
+		"Unattached EBS volumes",
 		"Elastic IPs",
-		"Idle Load Balancers",
-		"Unattached K8s PVCs",
-		"Total Monthly Waste",
+		"Load balancers without backends",
+		"PVC candidates",
+		"Monthly baseline estimates",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output missing %q", want)
@@ -98,12 +98,12 @@ func TestPrintText_AllResourceTypes(t *testing.T) {
 
 func TestPrintText_ZeroWaste(t *testing.T) {
 	var buf bytes.Buffer
-	if err := PrintText(&buf, WasteReport{}); err != nil {
+	if err := PrintText(&buf, WasteReport{Checks: []scanner.Check{{Source: "aws", Resource: "ebs_volumes", Status: scanner.StatusComplete}}}); err != nil {
 		t.Fatalf("PrintText error: %v", err)
 	}
 	out := buf.String()
 
-	if !strings.Contains(out, "Scan complete") {
+	if !strings.Contains(out, "Status: Complete") {
 		t.Error("missing scan complete message")
 	}
 }
@@ -172,9 +172,9 @@ func TestPrintJSON_Structure(t *testing.T) {
 	}
 
 	// Check total exists and is > 0
-	total, ok := result["total_monthly_waste"].(float64)
+	total, ok := result["estimated_aws_monthly_cost_usd"].(float64)
 	if !ok || total <= 0 {
-		t.Errorf("expected positive total, got %v", result["total_monthly_waste"])
+		t.Errorf("expected positive total, got %v", result["estimated_aws_monthly_cost_usd"])
 	}
 
 	// Check volume ID is obfuscated

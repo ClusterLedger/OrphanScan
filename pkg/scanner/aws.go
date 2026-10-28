@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -46,13 +47,19 @@ func listAvailableVolumes(ctx context.Context, client EC2Client) ([]types.Volume
 		},
 	}
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		out, err := client.DescribeVolumes(ctx, input)
 		if err != nil {
 			return nil, err
 		}
 		all = append(all, out.Volumes...)
-		if out.NextToken == nil {
+		if out.NextToken == nil || *out.NextToken == "" {
 			break
+		}
+		if safeString(input.NextToken) == *out.NextToken {
+			return nil, errors.New("volume pagination did not advance")
 		}
 		input.NextToken = out.NextToken
 	}

@@ -11,7 +11,7 @@ import (
 
 type KubeClient interface {
 	ListPVCs(ctx context.Context) ([]corev1.PersistentVolumeClaim, error)
-	ListRunningPods(ctx context.Context) ([]corev1.Pod, error)
+	ListPods(ctx context.Context) ([]corev1.Pod, error)
 }
 
 type OrphanedPVC struct {
@@ -29,7 +29,7 @@ func ScanOrphanedPVCs(ctx context.Context, client KubeClient) ([]OrphanedPVC, er
 		return nil, err
 	}
 
-	pods, err := client.ListRunningPods(ctx)
+	pods, err := client.ListPods(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -44,6 +44,18 @@ func filterOrphanedPVCs(pvcs []corev1.PersistentVolumeClaim, usedPVCs map[string
 
 	for _, pvc := range pvcs {
 		if usedPVCs[pvcKey(pvc)] {
+			continue
+		}
+		// Generic ephemeral PVCs are owned by a Pod rather than named in a
+		// PersistentVolumeClaim volume source. Protect those references too.
+		ownedByExistingPod := false
+		for _, owner := range pvc.OwnerReferences {
+			if owner.Kind == "Pod" && owner.UID != "" && usedPVCs["pod:"+pvc.Namespace+"/"+string(owner.UID)] {
+				ownedByExistingPod = true
+				break
+			}
+		}
+		if ownedByExistingPod {
 			continue
 		}
 
@@ -77,6 +89,9 @@ func toOrphanedPVC(pvc corev1.PersistentVolumeClaim, age time.Duration) Orphaned
 func getUsedPVCs(pods []corev1.Pod) map[string]bool {
 	used := make(map[string]bool)
 	for _, pod := range pods {
+		if pod.UID != "" {
+			used["pod:"+pod.Namespace+"/"+string(pod.UID)] = true
+		}
 		for _, volume := range pod.Spec.Volumes {
 			if volume.PersistentVolumeClaim != nil {
 				used[pod.Namespace+"/"+volume.PersistentVolumeClaim.ClaimName] = true

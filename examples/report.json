@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "checks": [
+    {
+      "source": "aws",
+      "region": "us-east-1",
+      "resource": "classic_load_balancers",
+      "status": "complete"
+    },
+    {
+      "source": "aws",
+      "region": "us-east-1",
+      "resource": "ebs_volumes",
+      "status": "complete"
+    },
+    {
+      "source": "aws",
+      "region": "us-east-1",
+      "resource": "elastic_ips",
+      "status": "complete"
+    },
+    {
+      "source": "aws",
+      "region": "us-east-1",
+      "resource": "elbv2_load_balancers",
+      "status": "complete"
+    },
+    {
+      "source": "kubernetes",
+      "resource": "persistent_volume_claims",
+      "status": "complete"
+    }
+  ],
+  "currency": "USD",
+  "pricing": {
+    "model": "baseline",
+    "reference_region": "us-east-1",
+    "reference_date": "2026-10-26",
+    "hours_per_month": 720
+  },
+  "estimated_aws_monthly_cost_usd": 27.8,
+  "estimated_kubernetes_monthly_cost_usd": 8,
+  "load_balancers_for_review": [
+    {
+      "name": "***",
+      "type": "ALB",
+      "region": "us-east-1",
+      "reason": "registered_backends_unhealthy_or_unknown"
+    }
+  ],
+  "unattached_ebs_volumes": [
+    {
+      "volume_id": "vol-***def0",
+      "region": "us-east-1",
+      "size_gb": 100,
+      "age": "72h0m0s",
+      "monthly_cost": 8
+    }
+  ],
+  "unassociated_eips": [
+    {
+      "allocation_id": "eipalloc-***def0",
+      "public_ip": "***",
+      "region": "us-east-1",
+      "monthly_cost": 3.6
+    }
+  ],
+  "idle_load_balancers": [
+    {
+      "name": "***",
+      "type": "ALB",
+      "region": "us-east-1",
+      "monthly_cost": 16.2
+    }
+  ],
+  "unattached_pvcs": [
+    {
+      "name": "***",
+      "namespace": "***",
+      "size_gb": 100,
+      "monthly_cost": 8
+    }
+  ]
+}
